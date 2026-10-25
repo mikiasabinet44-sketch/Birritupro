@@ -1,0 +1,18 @@
+{
+  "name": "bookkeeping-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency backend (Node built-ins only: http, node:sqlite, crypto) so `npm install` is not required to run it. tsx (TypeScript runner) is the only external tool it relies on.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "seed": "tsx src/db/seed.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: birritu-books-pro
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run seed && npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0 # node:sqlite isn't unflagged on older 22.x patches (e.g. 22.9.0 throws
+                       # ERR_UNKNOWN_BUILTIN_MODULE) — this version is confirmed working.
+      - key: SMS_WEBHOOK_SECRET
+        generateValue: true
+      # Optional: enables Claude for "Ask your books" and low-confidence categorisation.
+      # Paste the key in the Render dashboard (sync:false = not stored in git). Without it
+      # the AI features run on built-in rules/statistics.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: EINVOICE_MODE
+        value: sandbox
+    # Render's free web services use an EPHEMERAL filesystem: backend/data/app.db
+    # is wiped on every deploy and restart. That's fine for trying this out, but
+    # not for keeping real data. To persist it, add a paid persistent disk mounted
+    # at `backend/data` (uncomment below, requires a paid plan), or migrate to a
+    # managed Postgres database before using this for real bookkeeping.
+    # disk:
+    #   name: birritu-data
+    #   mountPath: /opt/render/project/src/backend/data
+    #   sizeGB: 1

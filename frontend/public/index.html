@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Birritu Books Pro</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">B</div>
+        <div>
+          <div class="brand-name">Birritu Books Pro</div>
+          <div class="brand-sub">Ethiopia SME bookkeeping</div>
+        </div>
+      </div>
+      <nav id="nav"></nav>
+      <div class="sidebar-footer">Pro prototype · SQLite</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <h1 id="page-title">Dashboard</h1>
+        <div class="topbar-right"><select id="branch-select" aria-label="Branch"><option value="all">All branches</option></select><div id="page-actions" class="topbar-right"></div></div>
+      </header>
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="/qr.js"></script>
+  <script src="/pro.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
