@@ -37,6 +37,50 @@ function notifSave() {
 function notifVisible() { return Notif.items.filter((n) => !Notif.muted.has(n.type)); }
 function notifUnread() { return notifVisible().filter((n) => !Notif.read.has(n.key)); }
 
+// Small counts on the sidebar menu, like the design: "Money in & out" shows new money received (until read),
+// "Payment checks" shows payments needing a look, "Stock" shows how many items are low, and so on.
+function notifNavBadges() {
+  const vis = notifVisible();
+  const n = (f) => vis.filter(f).length;
+  const unreadPay = n((i) => i.type === "payment" && !Notif.read.has(i.key));
+  const map = {
+    transactions: unreadPay ? { text: String(unreadPay), label: `${unreadPay} new payments` } : null,
+    payments: n((i) => i.type === "review" || i.type === "unread") ? { text: String(n((i) => i.type === "review" || i.type === "unread")), label: "payments to check" } : null,
+    invoices: n((i) => i.type === "invoice") ? { text: String(n((i) => i.type === "invoice")), label: "invoices due or overdue" } : null,
+    inventory: n((i) => i.type === "stock") ? { text: `${n((i) => i.type === "stock")} low`, label: "items low in stock", plain: true } : null,
+    tax: n((i) => i.type === "tax") ? { text: String(n((i) => i.type === "tax")), label: "tax deadlines" } : null,
+    payroll: n((i) => i.type === "payroll") ? { text: String(n((i) => i.type === "payroll")), label: "staff pay to approve" } : null,
+  };
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.querySelector(".nav-badge")?.remove();
+    const b = map[btn.dataset.route];
+    if (!b) return;
+    const el = document.createElement("span");
+    el.className = "nav-badge" + (b.plain ? " nav-badge-plain" : "");
+    el.textContent = b.text; el.title = b.label;
+    el.setAttribute("aria-label", b.label);
+    btn.appendChild(el);
+  });
+}
+
+// Sidebar badges: how many open items each page has (not tied to read/unread, so they stay until fixed).
+const NAV_BADGES = { transactions: ["payment"], payments: ["review", "unread"], invoices: ["invoice"], payroll: ["payroll"], tax: ["tax"], inventory: ["stock"] };
+function notifNavBadges() {
+  const vis = notifVisible();
+  document.querySelectorAll("#nav .nav-item").forEach((el) => {
+    el.querySelector(".badge")?.remove();
+    const types = NAV_BADGES[el.dataset.route];
+    if (!types) return;
+    const items = vis.filter((n) => types.includes(n.type));
+    if (!items.length) return;
+    const b = document.createElement("span");
+    b.className = "badge" + (items.some((n) => n.level === "urgent") ? " badge-urgent" : "");
+    b.textContent = el.dataset.route === "inventory" ? `${items.length} low` : String(items.length);
+    b.setAttribute("aria-label", `${b.textContent} need attention`);
+    el.appendChild(b);
+  });
+}
+
 function notifLevelPill(level) {
   return level === "urgent" ? `<span class="pill pill-danger">Urgent</span>` : level === "attention" ? `<span class="pill pill-warn">Check</span>` : `<span class="pill pill-muted">Info</span>`;
 }
@@ -115,11 +159,13 @@ function notifClose() {
 }
 
 function notifRender() {
+  notifNavBadges();
   const unread = notifUnread().length;
   const badge = document.getElementById("notif-count"), btn = document.getElementById("notif-btn");
   if (badge) { badge.hidden = unread === 0; badge.textContent = unread > 99 ? "99+" : String(unread); }
   if (btn) btn.setAttribute("aria-label", unread ? `Notifications, ${unread} unread` : "Notifications, none unread");
 
+  notifNavBadges();
   const list = document.getElementById("notif-list");
   if (list) {
     const rows = (Notif.tab === "unread" ? notifUnread() : notifVisible());

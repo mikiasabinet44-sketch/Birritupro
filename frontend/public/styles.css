@@ -65,6 +65,7 @@ a { color: var(--primary); }
   margin-left: auto; background: var(--accent); color: var(--sidebar);
   font-size: 12px; padding: 1px 8px; border-radius: 999px; font-weight: 600;
 }
+.nav-item .badge-urgent { background: #e5604d; color: #fff; }
 .sidebar-footer { font-size: 12px; color: #a9c2b9; padding: 8px; }
 
 /* ---------- main ---------- */
@@ -301,3 +302,8 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .notif-check { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; min-height: 34px; font-size: 14px; }
 .notif-desktop { margin-top: 10px; padding-top: 10px; border-top: 1px solid #efece3; }
 @media (max-width: 860px) { .notif-panel { top: 60px; right: 12px; } }
+
+/* Sidebar count badges (from notifications.js) */
+.nav-badge { margin-left: auto; background: var(--accent); color: var(--sidebar); font-size: 12px; font-weight: 600; min-width: 22px; text-align: center; padding: 1px 8px; border-radius: 999px; }
+.nav-badge-plain { background: none; color: var(--accent); padding: 0; font-weight: 500; }
+@media (max-width: 760px) { .nav-badge { margin-left: 6px; } }

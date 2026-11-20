@@ -154,6 +154,7 @@ function renderNav(active) {
   nav.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => navigate(btn.dataset.route));
   });
+  if (typeof notifNavBadges === "function") notifNavBadges();
 }
 
 async function navigate(routeId) {
