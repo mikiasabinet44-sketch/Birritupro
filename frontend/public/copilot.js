@@ -40,7 +40,7 @@ function sourcesBodyHtml(src) {
     const empty = s.count === 0;
     return `<div class="src-card">
       <div class="src-head"><span class="src-badge ${cls}" aria-hidden="true">${esc(s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3))}</span>
-        <div style="min-width:0"><div class="src-name">${esc(s.label)}</div><div class="muted small">${esc(s.fullName)}</div></div></div>
+        <div style="min-width:0"><div class="src-name">${esc(s.label)}</div>${s.fullName !== s.label ? `<div class="muted small">${esc(s.fullName)}</div>` : ""}</div></div>
       ${empty
         ? `<div class="src-amount muted">No payments</div><div class="muted small">Nothing received through ${esc(s.label)} for ${esc(periodLabel)}.</div>`
         : `<div class="src-amount">${money(s.inflow)}</div>

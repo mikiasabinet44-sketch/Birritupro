@@ -200,9 +200,9 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .src-legend { list-style: none; margin: 12px 0 18px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; }
 .src-legend li { display: flex; align-items: center; gap: 8px; }
 .src-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.src-cbe { background: #0f5c4a; color: #fff; }
-.src-tele { background: #a8620a; color: #fff; }
-.src-boa { background: #3a6b85; color: #fff; }
+.src-cbe { background: #6b2d8b; color: #fff; }      /* CBE: purple */
+.src-tele { background: #1f7a3d; color: #fff; }     /* Telebirr: green */
+.src-boa { background: #f2c230; color: #14201b; }   /* BOA: yellow (dark text for contrast) */
 .src-other { background: #6f6a58; color: #fff; }
 .src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
 .src-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 2px; }
