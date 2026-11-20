@@ -35,28 +35,32 @@ function sourcesBodyHtml(src) {
        <ul class="src-legend">${segs.map((s) => `<li><span class="src-dot ${SRC_COLORS[s.key] ?? "src-other"}" aria-hidden="true"></span>${esc(s.label)} <b>${s.pct}%</b></li>`).join("")}</ul>`
     : `<div class="empty">No money has come in for ${esc(periodLabel)} yet.</div>`;
 
+  const logo = (p, label, txt) => `<span class="wc-logo" aria-hidden="true"><span class="wc-letters">${esc(txt)}</span><img src="/logos/${p}.png" alt="" onerror="this.remove()"></span>`;
   const cards = src.sources.map((s) => {
     const cls = SRC_COLORS[s.provider] ?? "src-other";
     const empty = s.count === 0;
-    return `<div class="src-card">
-      <div class="src-head"><span class="src-badge ${cls}" aria-hidden="true">${esc(s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3))}</span>
-        <div style="min-width:0"><div class="src-name">${esc(s.label)}</div>${s.fullName !== s.label ? `<div class="muted small">${esc(s.fullName)}</div>` : ""}</div></div>
+    const txt = s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3);
+    return `<div class="src-card wc ${cls}" role="group" aria-label="${esc(s.label)}">
+      <div class="wc-top">${logo(s.provider.toLowerCase(), s.label, txt)}
+        <div class="wc-name"><div class="src-name">${esc(s.label)}</div>${s.fullName !== s.label ? `<div class="wc-sub">${esc(s.fullName)}</div>` : ""}</div>
+        <span class="wc-chip" aria-hidden="true"></span></div>
+      <div class="wc-label">Money in · ${esc(periodLabel)}</div>
       ${empty
-        ? `<div class="src-amount muted">No payments</div><div class="muted small">Nothing received through ${esc(s.label)} for ${esc(periodLabel)}.</div>`
+        ? `<div class="src-amount wc-zero">No payments yet</div><div class="wc-sub">Nothing received through ${esc(s.label)}.</div>`
         : `<div class="src-amount">${money(s.inflow)}</div>
-           <div class="muted small">money in · ${s.count} payment${s.count === 1 ? "" : "s"} · ${s.sharePct}% of all money in</div>
-           ${s.outflow > 0 ? `<div class="small" style="margin-top:6px">Paid out: <b>${money(s.outflow)}</b></div>` : ""}
-           ${s.topPayers.length ? `<div class="small" style="margin-top:6px"><span class="muted">Top senders:</span> ${s.topPayers.map((p) => esc(p.name)).join(", ")}</div>` : ""}
-           <div class="src-foot"><span class="muted small">Last ${esc(timeAgo(s.lastAt))}</span>${s.needsReview > 0 ? ` <span class="pill pill-warn">${s.needsReview} to review</span>` : ""}</div>`}
+           <div class="wc-stats"><span><b>${s.count}</b> payment${s.count === 1 ? "" : "s"}</span><span><b>${s.sharePct}%</b> of money in</span>${s.outflow > 0 ? `<span>Paid out <b>${money(s.outflow)}</b></span>` : ""}</div>
+           ${s.topPayers.length ? `<div class="wc-sub" style="margin-top:8px">Top senders: ${s.topPayers.map((p) => esc(p.name)).join(", ")}</div>` : ""}
+           <div class="wc-foot"><span class="wc-sub">Last ${esc(timeAgo(s.lastAt))}</span>${s.needsReview > 0 ? ` <span class="wc-review">${s.needsReview} to review</span>` : ""}</div>`}
     </div>`;
   }).join("");
 
   const o = src.other;
-  const otherCard = `<div class="src-card">
-      <div class="src-head"><span class="src-badge src-other" aria-hidden="true">+</span>
-        <div style="min-width:0"><div class="src-name">Other entries</div><div class="muted small">${esc(o.label)}</div></div></div>
-      ${o.count === 0 ? `<div class="src-amount muted">None</div>` : `<div class="src-amount">${money(o.inflow)}</div>
-        <div class="muted small">money in · ${o.count} entr${o.count === 1 ? "y" : "ies"} · ${o.sharePct}% of all money in</div>`}
+  const otherCard = `<div class="src-card wc src-other" role="group" aria-label="Other entries">
+      <div class="wc-top"><span class="wc-logo" aria-hidden="true"><span class="wc-letters">+</span></span>
+        <div class="wc-name"><div class="src-name">Other entries</div><div class="wc-sub">${esc(o.label)}</div></div></div>
+      <div class="wc-label">Money in · ${esc(periodLabel)}</div>
+      ${o.count === 0 ? `<div class="src-amount wc-zero">None yet</div>` : `<div class="src-amount">${money(o.inflow)}</div>
+        <div class="wc-stats"><span><b>${o.count}</b> entr${o.count === 1 ? "y" : "ies"}</span><span><b>${o.sharePct}%</b> of money in</span></div>`}
     </div>`;
 
   return `<div class="src-total"><span class="src-total-num">${money(src.totalIn)}</span><span class="muted"> came in · ${esc(periodLabel)} · ${esc(src.scope)}</span></div>

@@ -307,3 +307,29 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .nav-badge { margin-left: auto; background: var(--accent); color: var(--sidebar); font-size: 12px; font-weight: 600; min-width: 22px; text-align: center; padding: 1px 8px; border-radius: 999px; }
 .nav-badge-plain { background: none; color: var(--accent); padding: 0; font-weight: 500; }
 @media (max-width: 760px) { .nav-badge { margin-left: 6px; } }
+
+/* ---------- Provider wallet cards ---------- */
+.src-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.src-card.wc { position: relative; overflow: hidden; border: 0; border-radius: 18px; padding: 18px; min-height: 190px; gap: 0;
+  color: var(--wc-ink, #fff); background: linear-gradient(135deg, var(--wc-a), var(--wc-b)); box-shadow: 0 6px 18px rgba(15, 43, 36, 0.14); }
+.src-card.wc::after { content: ""; position: absolute; right: -50px; top: -50px; width: 170px; height: 170px; border-radius: 50%; background: rgba(255,255,255,0.12); pointer-events: none; }
+.src-card.wc.src-cbe { --wc-a: #7b3a9c; --wc-b: #4b1d68; --wc-ink: #fff; }
+.src-card.wc.src-tele { --wc-a: #2a9a52; --wc-b: #15612f; --wc-ink: #fff; }
+.src-card.wc.src-boa { --wc-a: #f7d04a; --wc-b: #e2aa14; --wc-ink: #1d1a08; }
+.src-card.wc.src-other { --wc-a: #7f7a66; --wc-b: #54503f; --wc-ink: #fff; }
+.wc > * { position: relative; z-index: 1; }
+.wc-top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.wc-name { min-width: 0; flex: 1; }
+.wc .src-name { font-weight: 700; font-size: 16px; }
+.wc-sub { font-size: 13px; opacity: 0.85; overflow-wrap: anywhere; }
+.wc-logo { position: relative; flex: none; width: 44px; height: 44px; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+.wc-letters { font-weight: 800; font-size: 13px; letter-spacing: .02em; color: var(--wc-a); }
+.wc.src-boa .wc-letters { color: #8a6500; }
+.wc-logo img { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); object-fit: contain; background: #fff; }
+.wc-chip { flex: none; width: 34px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,.3)); border: 1px solid rgba(255,255,255,.5); }
+.wc-label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; opacity: .8; }
+.wc .src-amount { font-size: 28px; margin: 2px 0 6px; }
+.wc .wc-zero { font-size: 20px; opacity: .9; }
+.wc-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.wc-foot { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: auto; padding-top: 12px; }
+.wc-review { background: rgba(255,255,255,.92); color: #7a4a00; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
