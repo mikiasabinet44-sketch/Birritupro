@@ -244,3 +244,29 @@ CREATE TABLE IF NOT EXISTS category_memory (
   count INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (token, category)
 );
+
+-- ========================================================================
+-- API access (machine-to-machine): hashed keys with scopes, and idempotency records
+-- ========================================================================
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  prefix TEXT NOT NULL,              -- first characters of the key, shown in lists so keys can be told apart
+  key_hash TEXT NOT NULL UNIQUE,     -- sha256 of the full key; the key itself is never stored
+  scopes TEXT NOT NULL,              -- JSON array, e.g. ["payments:write","invoices:read"]
+  branch_id TEXT REFERENCES branches(id),   -- when set, this key can only act on that branch
+  active INTEGER NOT NULL DEFAULT 1,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key_id TEXT NOT NULL REFERENCES api_keys(id),
+  idem_key TEXT NOT NULL,
+  request_sig TEXT NOT NULL,         -- METHOD + path + body hash, so reusing a key for a different request is detected
+  status INTEGER NOT NULL,
+  response TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (key_id, idem_key)
+);

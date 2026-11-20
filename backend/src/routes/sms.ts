@@ -1,9 +1,7 @@
 import { createRouter } from "../lib/httpRouter.js";
-import { nanoid } from "../lib/id.js";
-import db from "../db/index.js";
+import db, { runInTransaction } from "../db/index.js";
 import { parseSms, type Provider } from "../lib/smsParsers.js";
-import { findInvoiceMatches } from "../lib/invoiceMatcher.js";
-import { smartCategorize } from "../lib/ai/learner.js";
+import { applyPaymentToInvoice, recordPayment } from "../lib/payments.js";
 import { branchClause, writeBranch } from "../lib/branch.js";
 
 export const smsRouter = createRouter();
@@ -41,86 +39,20 @@ smsRouter.post("/ingest", (req, res) => {
   const branchId = writeBranch(req, req.body?.branch ?? req.body?.branchCode ?? req.body?.branchId);
 
   const parsed = parseSms(rawText, provider as Provider | undefined, typeof sender === "string" ? sender : undefined);
-  const id = nanoid();
-
-  // Simple duplicate guard: same provider + reference (when we have one) within the table already.
-  let verificationStatus: string = parsed.parsedOk ? "verified" : "unparsed";
-  if (parsed.parsedOk && parsed.reference) {
-    const dup = db.prepare(`SELECT id FROM payment_events WHERE provider = ? AND reference = ?`)
-      .get(parsed.provider, parsed.reference);
-    if (dup) verificationStatus = "duplicate";
-  }
-
-  db.prepare(
-    `INSERT INTO payment_events
-      (id, provider, sender, raw_text, parsed_ok, amount, currency, counterparty_name, counterparty_phone,
-       reference, balance_after, txn_time, direction, verification_status, branch_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(
-    id,
-    parsed.provider,
-    typeof sender === "string" ? sender : null,
-    rawText,
-    parsed.parsedOk ? 1 : 0,
-    parsed.amount ?? null,
-    parsed.currency ?? "ETB",
-    parsed.counterpartyName ?? null,
-    parsed.counterpartyPhone ?? null,
-    parsed.reference ?? null,
-    parsed.balanceAfter ?? null,
-    parsed.txnTime ?? null,
-    parsed.direction ?? "credit",
-    verificationStatus,
-    branchId
-  );
-
-  let transactionId: string | null = null;
-  let matchResult: ReturnType<typeof findInvoiceMatches> = [];
-
-  if (verificationStatus === "verified" && parsed.amount) {
-    // 1. Post to the bookkeeping ledger automatically (AI-categorized as Sales Revenue-ish).
-    const catResult = smartCategorize(
-      `${parsed.direction === "debit" ? "payment sent to" : "payment received from"} ${parsed.counterpartyName ?? "unknown"} via ${parsed.provider}`,
-      parsed.direction === "debit" ? -parsed.amount : parsed.amount
-    );
-    transactionId = nanoid();
-    db.prepare(
-      `INSERT INTO transactions
-        (id, date, description, amount, category, category_confidence, category_status, source, source_ref_id, branch_id)
-       VALUES (?,?,?,?,?,?,?, 'sms_payment', ?, ?)`
-    ).run(
-      transactionId,
-      new Date().toISOString().slice(0, 10),
-      `${parsed.provider} ${parsed.direction} of ${parsed.amount} ETB from ${parsed.counterpartyName ?? "unknown"} (ref ${parsed.reference ?? "n/a"})`,
-      parsed.direction === "debit" ? -parsed.amount : parsed.amount,
-      catResult.category,
-      catResult.confidence,
-      "suggested",
-      id,
-      branchId
-    );
-    db.prepare(`UPDATE payment_events SET transaction_id = ? WHERE id = ?`).run(transactionId, id);
-
-    // 2. Try to auto-match against open invoices.
-    matchResult = findInvoiceMatches({
-      amount: parsed.amount,
-      counterpartyName: parsed.counterpartyName,
-      counterpartyPhone: parsed.counterpartyPhone,
+  let out!: ReturnType<typeof recordPayment>;
+  runInTransaction(() => {
+    out = recordPayment({
+      provider: parsed.provider, parsed, rawText, sender: typeof sender === "string" ? sender : null,
+      channel: "sms", branchId,
     });
-
-    const best = matchResult[0];
-    if (best && best.score >= 0.8) {
-      applyPaymentToInvoice(best.invoiceId, parsed.amount);
-      db.prepare(`UPDATE payment_events SET matched_invoice_id = ? WHERE id = ?`).run(best.invoiceId, id);
-    }
-  }
+  });
 
   res.status(201).json({
-    id,
-    parsed,
-    verificationStatus,
-    transactionId,
-    matchCandidates: matchResult,
+    id: out.id,
+    parsed: out.parsed,
+    verificationStatus: out.verificationStatus,
+    transactionId: out.transactionId,
+    matchCandidates: out.matchCandidates,
   });
 });
 
@@ -152,15 +84,3 @@ smsRouter.patch("/:id/reject", (req, res) => {
   db.prepare(`UPDATE payment_events SET verification_status = 'rejected' WHERE id = ?`).run(req.params.id);
   res.json({ ok: true });
 });
-
-function applyPaymentToInvoice(invoiceId: string, amount: number) {
-  const inv = db.prepare(`SELECT * FROM invoices WHERE id = ?`).get(invoiceId) as any;
-  if (!inv) return;
-  const newPaid = round2(inv.amount_paid + amount);
-  const status = newPaid >= inv.total_amount - 0.01 ? "paid" : "partially_paid";
-  db.prepare(`UPDATE invoices SET amount_paid = ?, status = ? WHERE id = ?`).run(newPaid, status, invoiceId);
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}

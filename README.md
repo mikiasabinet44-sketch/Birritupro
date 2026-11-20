@@ -24,7 +24,26 @@ npm run dev        # http://localhost:4000
 Needs Node ≥ 22.22 (built-in `node:sqlite`).
 
 ## Deploy on Render
-Push to GitHub → Render **New → Blueprint** → pick the repo (reads `render.yaml`). Optionally add `ANTHROPIC_API_KEY` in the service's Environment tab. Copy the generated `SMS_WEBHOOK_SECRET` into your SMS-forwarder app (`X-Webhook-Secret` header).
+Push to GitHub → Render **New → Blueprint** → pick the repo (reads `render.yaml`). Optionally add `ANTHROPIC_API_KEY`, and set `ADMIN_TOKEN` to manage API keys in the service's Environment tab. Copy the generated `SMS_WEBHOOK_SECRET` into your SMS-forwarder app (`X-Webhook-Secret` header).
+
+## Home: where the money comes from, and the copilot
+- **Where your money comes from** (Home) shows money in and out per channel (CBE, Telebirr, BOA), each channel's share, top senders, last payment time and how many payments need review, plus everything entered by hand. It reads the parsed payment events, so it works the same for SMS and API payments. Endpoint: `GET /api/home/sources?period=YYYY-MM|all`.
+- **Today** lists what needs attention (unmatched payments, overdue invoices, tax due soon, low stock, unusual items), each with a link to the right page. Endpoint: `GET /api/home/briefing`.
+- **Ask Birritu** is a chat drawer on every page. It answers from your own records ("Who paid me today?", "Which channel brings in the most money?"). With `ANTHROPIC_API_KEY` set it uses Claude; without it, a built-in rule engine answers common questions. It only reads data and never changes the books on its own.
+
+## Integration API (API keys instead of SMS)
+Banks, payment providers, POS or ERP systems push data to `/api/v1/*` with a key made in **Branches & Settings → API access** (set `ADMIN_TOKEN` on the server first; the page asks for it). Keys are shown once, stored hashed, carry scopes (`payments:write`, `invoices:read`, `inventory:write`, `einvoices:read`, `reports:read`, …), can be locked to one branch, are rate-limited (120/min) and can be revoked.
+
+```bash
+curl -X POST $URL/api/v1/payments -H "Authorization: Bearer bk_..." -H "Content-Type: application/json" \
+  -d '{"provider":"CBE","amount":1500,"direction":"credit","reference":"FT123","externalId":"bank-evt-98765","txnTime":"2026-10-25T10:30:00Z"}'
+```
+- `externalId` makes retries safe (same id → the earlier result is returned, `200` instead of `201`); `Idempotency-Key` does the same for other POST routes.
+- Payments go through the same pipeline as SMS: duplicate guard → ledger → automatic invoice match. SMS ingestion remains as a backup channel.
+- Keys can only reach the allow-listed routes (payments, invoices, customers, inventory, e-invoices, tax filings, dashboard summary). The browser UI's `/api/*` routes are not protected by keys.
+
+## VAT
+Net VAT payable = output VAT on sales − input VAT on purchases. Record input VAT by ticking "includes 15% VAT" on an expense, or via the VAT select when receiving stock. A negative result is shown as a credit and **not** carried forward to the next period automatically. Filed/paid filings are locked.
 
 ## What is real and what is not
 - **e-Invoicing is a sandbox.** Documents are validated and numbered locally and "registered" with an `SBX-…` reference that has **no legal effect**. Connecting to the Ministry of Revenue's e-invoicing system needs their official API specification and credentials, which this build does not have; `EINVOICE_MODE=mor` is a placeholder for that adapter. Do not issue these to customers as legal tax invoices.

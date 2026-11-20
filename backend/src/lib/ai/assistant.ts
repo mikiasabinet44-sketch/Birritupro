@@ -100,6 +100,16 @@ export function buildSnapshot(branchId: string | null) {
     taxFilingsDue: db.prepare(`SELECT period, tax_type AS type, tax_amount AS amount, due_date AS due FROM tax_filings WHERE status = 'due' ORDER BY due_date`).all(),
     einvoices: db.prepare(`SELECT doc_type AS type, status, COUNT(*) AS count FROM einvoices WHERE 1=1${bw} GROUP BY doc_type, status`).all(...bp),
     attentionItems: detectAnomalies(branchId).slice(0, 10).map((i) => ({ severity: i.severity, title: i.title })),
+    // Money received per payment channel (CBE / TELEBIRR / BOA ...) and the latest individual payments.
+    paymentChannelsThisMonth: db.prepare(
+      `SELECT provider AS channel, ROUND(SUM(CASE WHEN direction = 'debit' THEN 0 ELSE amount END),2) AS moneyIn, ROUND(SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END),2) AS moneyOut, COUNT(*) AS payments
+       FROM payment_events WHERE parsed_ok = 1 AND amount IS NOT NULL AND verification_status NOT IN ('duplicate','rejected','unparsed') AND substr(received_at,1,7) = ?${bw}
+       GROUP BY provider ORDER BY moneyIn DESC`
+    ).all(today.slice(0, 7), ...bp),
+    latestPayments: db.prepare(
+      `SELECT substr(received_at,1,16) AS at, provider AS channel, direction, amount, COALESCE(NULLIF(TRIM(counterparty_name),''),'Unnamed sender') AS counterparty, verification_status AS status
+       FROM payment_events WHERE parsed_ok = 1 AND amount IS NOT NULL AND verification_status NOT IN ('duplicate','rejected','unparsed')${bw} ORDER BY received_at DESC LIMIT 15`
+    ).all(...bp),
     forecast: (() => { const f = cashForecast(branchId, 8); return { confidence: f.confidence, firstNegativeWeek: f.firstNegativeWeek, closingCashIn8Weeks: f.weeks[f.weeks.length - 1]?.closing }; })(),
   };
 }
@@ -110,6 +120,8 @@ export function buildSnapshot(branchId: string | null) {
 const HELP = [
   "How much did we spend on rent this month?",
   "What are our sales this month?",
+  "Who paid me today?",
+  "Which channel brings in the most money?",
   "Who owes us money?",
   "What should I reorder?",
   "Will we run out of cash?",
@@ -168,6 +180,35 @@ function answerOffline(question: string, branchId: string | null): AssistantRepl
     const due = f.filter((x) => x.status === "due");
     if (!f.length) return reply("No tax filings have been computed yet. Use Tax Compliance to compute a period.");
     return reply(`${due.length} filing(s) are currently due, totalling ${money(due.reduce((s, x) => s + x.tax_amount, 0))}. Tax is calculated company-wide, not per branch.`, { columns: ["Period", "Type", "Amount", "Due", "Status"], rows: f.map((x) => [x.period, x.tax_type.replace(/_/g, " "), money(x.tax_amount), x.due_date ?? "-", x.status]) });
+  }
+
+  // Which channel did money come from / who paid me
+  if (!/\bowe|unpaid|outstanding|overdue/.test(q) && /who (paid|sent)|paid me|sent me|received|came from|come from|channel|telebirr|\bcbe\b|\bboa\b|abyssinia|commercial bank|which bank|where.{0,20}(money|income|payment)/.test(q)) {
+    const today = /today/.test(q);
+    const prefixLen = today ? 10 : 7;
+    const since = today ? todayStr() : todayStr().slice(0, 7);
+    const when = today ? "today" : "this month";
+    const prov = /telebirr/.test(q) ? "TELEBIRR" : /\bcbe\b|commercial bank/.test(q) ? "CBE" : /\bboa\b|abyssinia/.test(q) ? "BOA" : null;
+    const pw = prov ? " AND provider = ?" : "";
+    const pp = prov ? [prov] : [];
+    const base = `FROM payment_events WHERE parsed_ok = 1 AND amount IS NOT NULL AND direction != 'debit' AND verification_status NOT IN ('duplicate','rejected','unparsed') AND substr(received_at,1,${prefixLen}) = ?${pw}${bw}`;
+    const names: Record<string, string> = { CBE: "CBE", TELEBIRR: "Telebirr", BOA: "BOA", UNKNOWN: "Unrecognised sender" };
+    if (/\bwho\b|list|payers|from whom/.test(q)) {
+      const rows = db.prepare(`SELECT substr(received_at,1,16) AS at, provider, COALESCE(NULLIF(TRIM(counterparty_name),''),'Unnamed sender') AS who, amount ${base} ORDER BY received_at DESC LIMIT 15`).all(since, ...pp, ...bp) as any[];
+      if (!rows.length) return reply(`No payments received ${when}${prov ? ` via ${names[prov]}` : ""} for ${scope}.`);
+      const total = rows.reduce((s, r) => s + r.amount, 0);
+      return reply(`${rows.length} payment(s) received ${when}${prov ? ` via ${names[prov]}` : ""} for ${scope}, ${money(total)} in total:`, { columns: ["Time", "Via", "From", "Amount"], rows: rows.map((r) => [r.at, names[r.provider] ?? r.provider, r.who, money(r.amount)]) });
+    }
+    const ch = db.prepare(`SELECT provider, SUM(amount) AS total, COUNT(*) AS n ${base} GROUP BY provider ORDER BY total DESC`).all(since, ...pp, ...bp) as any[];
+    if (!ch.length) return reply(`No payments received ${when}${prov ? ` via ${names[prov]}` : ""} for ${scope}.`);
+    const all = ch.reduce((s, r) => s + r.total, 0);
+    const summary = prov
+      ? `${money(all)} came in ${when} via ${names[prov]} for ${scope}, from ${ch.reduce((s, r) => s + r.n, 0)} payment(s).`
+      : `${money(all)} came in ${when} for ${scope}. Most of it arrived via ${names[ch[0].provider] ?? ch[0].provider} (${Math.round((ch[0].total / all) * 100)}%).`;
+    return reply(summary, {
+      columns: ["Channel", "Money in", "Payments", "Share"],
+      rows: ch.map((r) => [names[r.provider] ?? r.provider, money(r.total), r.n, `${Math.round((r.total / all) * 100)}%`]),
+    });
   }
 
   if (/owe|outstanding|unpaid|receivable|overdue|collect/.test(q)) {

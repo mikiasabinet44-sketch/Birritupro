@@ -25,6 +25,13 @@ export function ensureColumn(table: string, column: string, ddl: string) {
 const BRANCHED_TABLES = ["transactions", "invoices", "employees", "payment_events", "payroll_runs"];
 for (const t of BRANCHED_TABLES) ensureColumn(t, "branch_id", "TEXT REFERENCES branches(id)");
 
+// ---- Migrations: API-sourced payments, input VAT, tax filing detail ----
+ensureColumn("payment_events", "channel", "TEXT NOT NULL DEFAULT 'sms'");   // 'sms' | 'api'
+ensureColumn("payment_events", "external_id", "TEXT");                     // the sender's own id, used to make retries safe
+ensureColumn("transactions", "input_vat", "REAL NOT NULL DEFAULT 0");      // VAT paid on a purchase, claimable against output VAT
+ensureColumn("tax_filings", "detail", "TEXT");                             // JSON breakdown (e.g. output VAT, input VAT, net)
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_external ON payment_events(channel, external_id) WHERE external_id IS NOT NULL`);
+
 /** Every installation has exactly one head office; it is the default branch for anything not explicitly assigned. */
 export function getHeadOfficeId(): string {
   const row = db.prepare(`SELECT id FROM branches WHERE is_head_office = 1 ORDER BY created_at LIMIT 1`).get() as { id: string } | undefined;

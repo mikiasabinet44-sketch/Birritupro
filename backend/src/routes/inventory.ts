@@ -104,7 +104,7 @@ inventoryRouter.post("/receive", (req, res) => {
   const branchId = writeBranch(req, b.branchId);
   let out;
   runInTransaction(() => {
-    out = receiveStock({ productId: b.productId, branchId, qty: Number(b.qty), unitCost: Number(b.unitCost), date: b.date, supplier: b.supplier, recordExpense: b.recordExpense });
+    out = receiveStock({ productId: b.productId, branchId, qty: Number(b.qty), unitCost: Number(b.unitCost), date: b.date, supplier: b.supplier, recordExpense: b.recordExpense, vatRate: b.vatRate === undefined || b.vatRate === "" ? 0 : Number(b.vatRate) });
   });
   res.status(201).json(out);
 });

@@ -52,9 +52,11 @@ function assertAvailable(product: ProductRow, branchId: string, needed: number) 
  * all branches and records the purchase as an expense in the ledger
  * (cash-basis, consistent with the rest of this app's simplified ledger).
  */
-export function receiveStock(input: { productId: string; branchId: string; qty: number; unitCost: number; date?: string; supplier?: string; recordExpense?: boolean }) {
+export function receiveStock(input: { productId: string; branchId: string; qty: number; unitCost: number; date?: string; supplier?: string; recordExpense?: boolean; vatRate?: number }) {
   if (!(input.qty > 0)) throw new HttpError(400, "qty must be > 0");
   if (!(input.unitCost >= 0)) throw new HttpError(400, "unitCost must be >= 0");
+  const vatRate = input.vatRate ?? 0;
+  if (!(vatRate >= 0 && vatRate < 1)) throw new HttpError(400, "vatRate must be between 0 and 1");
   const product = getProduct(input.productId);
   const onHandAll = Math.max(0, stockOnHand(product.id, null));
   const newCost = round2((onHandAll * product.cost_price + input.qty * input.unitCost) / (onHandAll + input.qty));
@@ -65,14 +67,18 @@ export function receiveStock(input: { productId: string; branchId: string; qty: 
 
   let transactionId: string | null = null;
   if (input.recordExpense !== false && input.unitCost > 0) {
-    const total = round2(input.qty * input.unitCost);
+    // unitCost is the price before VAT (and is what stock is valued at). The cash paid includes VAT;
+    // that VAT is recorded separately so it can be claimed against output VAT.
+    const net = round2(input.qty * input.unitCost);
+    const inputVat = round2(net * vatRate);
+    const total = round2(net + inputVat);
     const description = `Stock purchase: ${input.qty} ${product.unit} ${product.name}${input.supplier ? ` from ${input.supplier}` : ""}`;
     transactionId = nanoid();
     const cat = categorizeTransaction(description, -total);
     db.prepare(
-      `INSERT INTO transactions (id, date, description, amount, category, category_confidence, category_status, source, source_ref_id, branch_id)
-       VALUES (?,?,?,?,?,?,?, 'manual', ?, ?)`
-    ).run(transactionId, date, description, -total, "Supplies & Inventory", Math.max(cat.confidence, 0.9), "confirmed", movementId, input.branchId);
+      `INSERT INTO transactions (id, date, description, amount, category, category_confidence, category_status, source, source_ref_id, branch_id, input_vat)
+       VALUES (?,?,?,?,?,?,?, 'manual', ?, ?, ?)`
+    ).run(transactionId, date, description, -total, "Supplies & Inventory", Math.max(cat.confidence, 0.9), "confirmed", movementId, input.branchId, inputVat);
   }
   return { movementId, newAverageCost: newCost, transactionId };
 }

@@ -70,7 +70,8 @@ async function renderInventory(view, tab = "stock") {
             <div><label>Product</label><select name="productId">${opt(products, "id", (p) => `${p.sku} · ${p.name}`)}</select></div>
             <div><label>Into branch</label><select name="branchId">${opt(active, "id", "name")}</select></div>
             <div><label>Quantity</label><input type="number" step="0.01" name="qty" required /></div>
-            <div><label>Unit cost</label><input type="number" step="0.01" name="unitCost" required /></div>
+            <div><label>Unit cost (excl. VAT)</label><input type="number" step="0.01" name="unitCost" required /></div>
+            <div><label>VAT on this purchase</label><select name="vatRate"><option value="0">None / not claimable</option><option value="0.15">15% — I hold a valid VAT invoice</option></select></div>
             <div><label>Supplier</label><input name="supplier" /></div>
             <div><label>Book as expense?</label><select name="recordExpense"><option value="true">Yes — add to ledger</option><option value="false">No</option></select></div>
           </div><button class="btn btn-primary" type="submit">Receive</button></form>
@@ -115,7 +116,7 @@ async function renderInventory(view, tab = "stock") {
     });
   };
   submit("prod-form", "/inventory/products", (f) => ({ ...f, costPrice: +f.costPrice, sellPrice: +f.sellPrice, vatRate: +f.vatRate, reorderLevel: +f.reorderLevel, leadTimeDays: +f.leadTimeDays, openingQty: +f.openingQty }), "Product added");
-  submit("recv-form", "/inventory/receive", (f) => ({ ...f, qty: +f.qty, unitCost: +f.unitCost, recordExpense: f.recordExpense === "true" }), "Stock received");
+  submit("recv-form", "/inventory/receive", (f) => ({ ...f, qty: +f.qty, unitCost: +f.unitCost, vatRate: +f.vatRate, recordExpense: f.recordExpense === "true" }), "Stock received");
   submit("xfer-form", "/inventory/transfer", (f) => ({ ...f, qty: +f.qty }), "Transfer recorded");
   submit("adj-form", "/inventory/adjust", (f) => ({ ...f, countedQty: +f.countedQty }), "Stock count saved");
 
@@ -311,7 +312,8 @@ async function renderBranches(view) {
           <div><label>Phone</label><input name="company_phone" value="${esc(settings.company_phone ?? "")}" /></div>
         </div><button class="btn btn-primary" type="submit">Save</button></form>
       </div></div>
-    </div>`;
+    </div>
+    <div id="api-panel"></div>`;
 
   document.getElementById("branch-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -323,4 +325,73 @@ async function renderBranches(view) {
     try { await api("/settings", { method: "PATCH", body: Object.fromEntries(new FormData(e.target)) }); toast("Company profile saved"); }
     catch (err) { toast(err.message, true); }
   });
+  renderApiAccess(document.getElementById("api-panel"), branches);
+}
+
+// ================================================================ API access
+
+function adminToken() { try { return sessionStorage.getItem("adminToken") || ""; } catch { return ""; } }
+const adminOpts = () => ({ headers: adminToken() ? { "X-Admin-Token": adminToken() } : {} });
+
+async function renderApiAccess(el, branches, freshKey) {
+  const origin = location.origin;
+  const head = `<div class="panel"><div class="panel-head"><h3>API access (for banks, payment providers, POS / ERP)</h3></div><div class="panel-body">`;
+  let keys, scopes;
+  try {
+    [keys, scopes] = await Promise.all([api("/keys", adminOpts()), api("/keys/scopes")]);
+  } catch (err) {
+    const needsToken = /admin token/i.test(err.message);
+    el.innerHTML = head + `<p class="muted small">${esc(err.message)}</p>` + (needsToken
+      ? `<form id="admin-form" class="flex"><input type="password" name="t" placeholder="Admin token" required style="max-width:260px" /><button class="btn btn-primary" type="submit">Unlock</button></form>`
+      : `<p class="small">On Render: <b>Environment → add <code>ADMIN_TOKEN</code></b> (a long random string), redeploy, then enter it here.</p>`) + `</div></div>`;
+    const f = document.getElementById("admin-form");
+    if (f) f.addEventListener("submit", (e) => { e.preventDefault(); try { sessionStorage.setItem("adminToken", new FormData(f).get("t")); } catch {} renderApiAccess(el, branches); });
+    return;
+  }
+  const groups = {};
+  scopes.forEach((s) => { const [res, act] = s.split(":"); (groups[res] ??= []).push([s, act]); });
+
+  el.innerHTML = head + `
+    ${freshKey ? `<div class="notice notice-warn"><b>Copy this key now — it is shown only once:</b><br><code id="fresh-key" style="word-break:break-all;user-select:all">${esc(freshKey)}</code>
+      <button class="btn btn-sm" id="copy-key" style="margin-left:8px">Copy</button></div>` : ""}
+    <form id="key-form"><div class="form-grid">
+      <div><label>Name (who will use it)</label><input name="name" required maxlength="80" placeholder="e.g. Bole POS, CBE gateway" /></div>
+      <div><label>Restrict to branch</label><select name="branch"><option value="">All branches</option>${branches.filter((b) => b.active).map((b) => `<option value="${esc(b.code)}">${esc(b.code)} · ${esc(b.name)}</option>`).join("")}</select></div>
+    </div>
+    <div class="form-grid">${Object.entries(groups).map(([res, acts]) => `<div><label>${esc(res)}</label>${acts.map(([s, a]) => `<label class="flex" style="gap:6px;font-weight:400"><input type="checkbox" name="scope" value="${esc(s)}" style="width:auto" />${esc(a)}</label>`).join("")}</div>`).join("")}</div>
+    <button class="btn btn-primary" type="submit">Create key</button></form>
+    ${table(["Name", "Key", "Branch", "Scopes", "Last used", "Status", ""],
+      keys.map((k) => [esc(k.name), `<code>${esc(k.prefix)}…</code>`, esc(k.branch_code ?? "all"), `<span class="small">${k.scopes.map(esc).join(", ")}</span>`, esc(k.last_used_at ?? "never"),
+        k.active ? pill("active", "ok") : pill("revoked", "muted"), k.active ? `<button class="btn btn-sm btn-danger" data-revoke="${k.id}">Revoke</button>` : ""]), "No API keys yet.")}
+    <details style="margin-top:14px"><summary><b>How an integration uses it</b></summary>
+<pre style="overflow-x:auto;background:var(--surface-alt);padding:12px;border-radius:8px;font-size:12px">curl -X POST ${esc(origin)}/api/v1/payments \\
+  -H "Authorization: Bearer bk_..." -H "Content-Type: application/json" \\
+  -d '{"provider":"CBE","amount":1725.00,"counterpartyName":"ABEBE KEBEDE",
+       "reference":"FT24296ABCDE","externalId":"your-unique-id-123",
+       "txnTime":"2026-10-25T14:05:00+03:00"}'
+
+Other endpoints (scope in brackets):
+  GET/POST /api/v1/invoices [invoices]   POST /api/v1/customers [customers]
+  GET /api/v1/inventory/stock|products [inventory:read]
+  POST /api/v1/inventory/receive|adjust|products [inventory:write]
+  POST /api/v1/einvoices/from-invoice/:id [einvoices:write]
+  GET /api/v1/tax/filings, /api/v1/dashboard/summary [reports:read]
+Send an Idempotency-Key header on POSTs so a retry never creates a duplicate.</pre></details>
+    </div></div>`;
+
+  document.getElementById("copy-key")?.addEventListener("click", () => navigator.clipboard?.writeText(freshKey).then(() => toast("Copied")));
+  document.getElementById("key-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target), picked = fd.getAll("scope");
+    if (!picked.length) return toast("Choose at least one scope", true);
+    try {
+      const r = await api("/keys", { ...adminOpts(), method: "POST", body: { name: fd.get("name"), scopes: picked, branch: fd.get("branch") || undefined } });
+      renderApiAccess(el, branches, r.key);
+    } catch (err) { toast(err.message, true); }
+  });
+  el.querySelectorAll("[data-revoke]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Revoke this key? Anything using it stops working immediately.")) return;
+    try { await api(`/keys/${b.dataset.revoke}/revoke`, { ...adminOpts(), method: "POST" }); renderApiAccess(el, branches); }
+    catch (err) { toast(err.message, true); }
+  }));
 }

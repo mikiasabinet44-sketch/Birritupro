@@ -3,6 +3,7 @@ import { nanoid } from "../lib/id.js";
 import db from "../db/index.js";
 import { branchClause, writeBranch } from "../lib/branch.js";
 import { learn, smartCategorize } from "../lib/ai/learner.js";
+import { round2 } from "../lib/branch.js";
 
 export const transactionsRouter = createRouter();
 
@@ -26,6 +27,25 @@ transactionsRouter.post("/", (req, res) => {
   const branchId = writeBranch(req, req.body?.branchId);
   const id = nanoid();
 
+  // Input VAT: VAT you paid on a purchase and can claim back against the VAT you charged on sales.
+  // Only enter it when you hold a valid VAT invoice from a VAT-registered supplier.
+  //   { inputVat: 150 }                       explicit amount, or
+  //   { vatIncluded: true, vatRate?: 0.15 }   amount already includes VAT at that rate
+  const b = req.body ?? {};
+  let inputVat = 0;
+  if (b.inputVat !== undefined || b.vatIncluded) {
+    if (!(Number(amount) < 0)) throw new HttpError(400, "input VAT only applies to expenses (a negative amount)");
+    const gross = Math.abs(Number(amount));
+    if (b.inputVat !== undefined) {
+      inputVat = round2(Number(b.inputVat));
+    } else {
+      const rate = b.vatRate === undefined ? 0.15 : Number(b.vatRate);
+      if (!(rate > 0 && rate < 1)) throw new HttpError(400, "vatRate must be between 0 and 1");
+      inputVat = round2((gross * rate) / (1 + rate));
+    }
+    if (!Number.isFinite(inputVat) || inputVat < 0 || inputVat > gross) throw new HttpError(400, "inputVat must be between 0 and the expense amount");
+  }
+
   let finalCategory = category;
   let confidence = 1;
   let status: "manual" | "suggested" = "manual";
@@ -42,11 +62,11 @@ transactionsRouter.post("/", (req, res) => {
 
   db.prepare(
     `INSERT INTO transactions
-      (id, date, description, amount, debit_account_id, credit_account_id, category, category_confidence, category_status, source, branch_id)
-     VALUES (?,?,?,?,?,?,?,?,?, 'manual', ?)`
-  ).run(id, date, description, amount, debitAccountId ?? null, creditAccountId ?? null, finalCategory, confidence, status, branchId);
+      (id, date, description, amount, debit_account_id, credit_account_id, category, category_confidence, category_status, source, branch_id, input_vat)
+     VALUES (?,?,?,?,?,?,?,?,?, 'manual', ?, ?)`
+  ).run(id, date, description, amount, debitAccountId ?? null, creditAccountId ?? null, finalCategory, confidence, status, branchId, inputVat);
 
-  res.status(201).json({ id, category: finalCategory, confidence, status, suggestedBy: category ? "you" : source });
+  res.status(201).json({ id, category: finalCategory, confidence, status, suggestedBy: category ? "you" : source, inputVat });
 });
 
 // Confirm or change a suggested category - the human-in-the-loop step. Each confirmation also teaches the categorizer.

@@ -18,6 +18,10 @@ services:
       # the AI features run on built-in rules/statistics.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Protects API-key management (Branches & Settings → API access). Set any long random
+      # string; without it, key management only works from localhost.
+      - key: ADMIN_TOKEN
+        sync: false
       - key: EINVOICE_MODE
         value: sandbox
     # Render's free web services use an EPHEMERAL filesystem: backend/data/app.db

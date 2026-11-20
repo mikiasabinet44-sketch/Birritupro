@@ -25,7 +25,7 @@ async function loadBranches() {
 async function api(path, opts = {}) {
   const res = await fetch(API + path, {
     method: opts.method ?? "GET",
-    headers: { "Content-Type": "application/json", "X-Branch-Id": currentBranch },
+    headers: { "Content-Type": "application/json", "X-Branch-Id": currentBranch, ...(opts.headers ?? {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   let data = null;
@@ -118,22 +118,38 @@ const STATUS_PILL = {
 // ---------------------------------------------------------------- Routing
 
 const ROUTES = [
-  { id: "dashboard", label: "Dashboard", render: renderDashboard },
-  { id: "transactions", label: "Bookkeeping", render: renderTransactions },
-  { id: "payments", label: "Payment Verification", render: renderPayments },
-  { id: "invoices", label: "Invoices & Matching", render: renderInvoices },
-  { id: "payroll", label: "Payroll", render: renderPayroll },
-  { id: "tax", label: "Tax Compliance", render: renderTax },
-  { id: "inventory", label: "Inventory", render: renderInventory },
-  { id: "einvoices", label: "e-Invoicing", render: renderEInvoices },
-  { id: "ai", label: "AI Insights", render: renderAI },
-  { id: "branches", label: "Branches & Settings", render: renderBranches },
+  { id: "dashboard", label: "Home", render: renderDashboard },
+  { id: "transactions", label: "Money in & out", render: renderTransactions },
+  { id: "payments", label: "Payment checks", render: renderPayments },
+  { id: "invoices", label: "Invoices", render: renderInvoices },
+  { id: "payroll", label: "Staff pay", render: renderPayroll },
+  { id: "tax", label: "Taxes", render: renderTax },
+  { id: "inventory", label: "Stock", render: renderInventory },
+  { id: "einvoices", label: "e-Invoices", render: renderEInvoices },
+  { id: "ai", label: "Ask your books", render: renderAI },
+  { id: "branches", label: "Branches & settings", render: renderBranches },
 ];
+
+// Simple 20px outline icons (stroke = currentColor), one per route.
+const NAV_ICONS = {
+  dashboard: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  transactions: '<path d="M7 4v14m0 0l-3-3m3 3l3-3M17 20V6m0 0l-3 3m3-3l3 3"/>',
+  payments: '<path d="M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  invoices: '<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/>',
+  payroll: '<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7l12-3v3M16 14h2"/>',
+  tax: '<path d="M5 19L19 5"/><circle cx="7.5" cy="7.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/>',
+  inventory: '<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>',
+  einvoices: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 19h2"/>',
+  ai: '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+  branches: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4"/>',
+};
 
 function renderNav(active) {
   const nav = document.getElementById("nav");
   nav.innerHTML = ROUTES.map(
-    (r) => `<button class="nav-item${r.id === active ? " active" : ""}" data-route="${r.id}">${esc(r.label)}</button>`
+    (r) => `<button class="nav-item${r.id === active ? " active" : ""}" data-route="${r.id}"${r.id === active ? ' aria-current="page"' : ""}>` +
+      `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[r.id] ?? ""}</svg>` +
+      `<span>${esc(r.label)}</span></button>`
   ).join("");
   nav.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => navigate(btn.dataset.route));
@@ -167,8 +183,15 @@ async function renderDashboard(view) {
   const [txns, sms, invoices] = await Promise.all([
     api("/transactions"), api("/sms"), api("/invoices"),
   ]);
+  // The money-source and briefing panels are extras: if they fail, the rest of Home still loads.
+  const [src, brief] = await Promise.all([
+    api("/home/sources").catch(() => null),
+    api("/home/briefing").catch(() => null),
+  ]);
 
   view.innerHTML = `
+    ${src ? sourcesPanelHtml(src) : ""}
+    ${brief ? `<div class="two-col">${todayPanelHtml(brief)}${askBarHtml()}</div>` : ""}
     <div class="grid-cards">
       ${card("Net position", money(s.net), `${money(s.income)} in · ${money(Math.abs(s.expense))} out`)}
       ${card("Awaiting review", s.pendingReview, "AI-suggested transactions to confirm")}
@@ -209,6 +232,8 @@ async function renderDashboard(view) {
       </div>
     </div>
   `;
+  if (src) bindSources(view);
+  bindHomeCopilot(view);
 }
 
 function card(label, value, sub) {
@@ -237,6 +262,9 @@ async function renderTransactions(view) {
             <div><label>Date</label><input type="date" name="date" value="${new Date().toISOString().slice(0,10)}" required /></div>
             <div><label>Amount (ETB, +income / -expense)</label><input type="number" step="0.01" name="amount" required /></div>
             <div style="grid-column:1/-1"><label>Description</label><input type="text" name="description" placeholder="e.g. Paid electricity bill" required /></div>
+            <div style="grid-column:1/-1"><label class="flex" style="gap:6px"><input type="checkbox" name="vatIncluded" style="width:auto" />
+              This expense includes 15% VAT that I can claim (I hold a valid VAT invoice from a VAT-registered supplier)</label>
+              <div class="muted small">Only for expenses (negative amounts). Claimed VAT is deducted from the VAT you owe on sales.</div></div>
           </div>
           <button class="btn btn-primary" type="submit">Save — AI will suggest a category</button>
         </form>
@@ -259,6 +287,7 @@ async function renderTransactions(view) {
     try {
       await api("/transactions", { method: "POST", body: {
         date: fd.get("date"), amount: Number(fd.get("amount")), description: fd.get("description"),
+        vatIncluded: fd.get("vatIncluded") ? true : undefined,
       }});
       toast("Transaction added");
       renderTransactions(view);
@@ -274,7 +303,7 @@ async function renderTransactions(view) {
       <tbody>${rows.map((t) => `
         <tr>
           <td>${esc(t.date)}</td>
-          <td>${esc(t.description)}</td>
+          <td class="wrap">${esc(t.description)}</td>
           <td>${pill(t.source, "muted")}</td>
           <td>${pill(t.category ?? "Uncategorized", STATUS_PILL[t.category_status] ?? "muted")}
             ${t.category_status === "suggested" ? `<span class="small muted"> (${Math.round((t.category_confidence ?? 0) * 100)}% confident)</span>` : ""}
@@ -743,7 +772,7 @@ async function renderTax(view) {
           <div style="max-width:200px"><label>Period</label><input type="month" name="period" value="${new Date().toISOString().slice(0,7)}" required /></div>
           <button class="btn btn-primary" type="submit" style="margin-top:20px">Compute</button>
         </form>
-        <p class="small muted">Pulls VAT from invoices issued that month, and withholding from recorded "Supplies &amp; Inventory" expenses. Payroll income tax &amp; pension are added automatically when a payroll run is finalized.</p>
+        <p class="small muted"><b>VAT</b> = VAT charged on invoices issued that month (less registered credit notes) <b>minus input VAT</b> you recorded on purchases that month. A negative result is a VAT credit; it is shown but <b>not</b> carried into later months automatically. <b>Withholding</b> comes from "Supplies &amp; Inventory" expenses (pre-VAT value). Payroll income tax &amp; pension are added when a payroll run is finalized. A filing marked filed/paid is locked and will not change on recompute.</p>
       </div>
     </div>
     <div class="panel">
@@ -773,7 +802,13 @@ async function renderTax(view) {
           <td>${esc(f.period)}</td>
           <td>${pill(f.tax_type.replace(/_/g, " "), "muted")}</td>
           <td class="num">${money(f.base_amount)}</td>
-          <td class="num">${money(f.tax_amount)}</td>
+          <td class="num">${money(f.tax_amount)}${(() => {
+            if (!f.detail) return "";
+            try {
+              const d = JSON.parse(f.detail);
+              return `<div class="muted small">output ${money(d.outputVat)} − input ${money(d.inputVat)}${d.netVat < 0 ? "<br><b>VAT credit — nothing to pay</b>" : ""}</div>`;
+            } catch { return ""; }
+          })()}</td>
           <td>${esc(f.due_date ?? "—")}</td>
           <td>${pill(f.status, STATUS_PILL[f.status] ?? "muted")}</td>
           <td>${f.status !== "paid" ? `<select class="status-select small" data-id="${f.id}">

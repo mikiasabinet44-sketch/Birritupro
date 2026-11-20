@@ -18,7 +18,7 @@ taxRouter.patch("/filings/:id/status", (req, res) => {
 taxRouter.get("/rates", (_req, res) => res.json(RATES));
 
 /**
- * Computes VAT output tax for a period from invoices issued in that period,
+ * Computes net VAT for a period (output VAT on invoices issued, less input VAT paid on purchases),
  * and withholding tax due on recorded expense transactions tagged
  * "Supplies & Inventory" or "Tax Payment" as a simplified proxy for
  * withholding-applicable purchases. Upserts rows into tax_filings.
@@ -41,30 +41,41 @@ taxRouter.post("/compute/:period", (req, res) => {
   const vatBase = round2(invoices.reduce((s, i) => s + i.amount, 0) - credits.net);
   const vatAmount = round2(invoices.reduce((s, i) => s + i.vat_amount, 0) - credits.vat);
 
+  // Input VAT: VAT paid on purchases in the period (only where it was recorded against a valid supplier invoice).
+  const inputVat = round2(
+    (db.prepare(`SELECT COALESCE(SUM(input_vat),0) AS v FROM transactions WHERE date LIKE ? AND amount < 0`).get(`${period}%`) as { v: number }).v
+  );
+  const netVat = round2(vatAmount - inputVat); // negative = a credit to carry forward / claim, not a payment
+
+  // Withholding is on the pre-VAT value of qualifying purchases.
   const expenseTxns = db.prepare(
-    `SELECT * FROM transactions WHERE date LIKE ? AND amount < 0 AND category = 'Supplies & Inventory'`
+    `SELECT amount, input_vat FROM transactions WHERE date LIKE ? AND amount < 0 AND category = 'Supplies & Inventory'`
   ).all(`${period}%`) as any[];
-  const whBase = expenseTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const whBase = round2(expenseTxns.reduce((s, t) => s + Math.abs(t.amount) - (t.input_vat ?? 0), 0));
   const whAmount = calcWithholding(whBase);
 
-  upsert(period, "vat", vatBase, vatAmount);
-  upsert(period, "withholding", whBase, whAmount);
+  const vatLocked = !upsert(period, "vat", vatBase, netVat, { outputVat: vatAmount, inputVat, netVat, creditCarriedForward: netVat < 0 ? -netVat : 0 });
+  const whLocked = !upsert(period, "withholding", whBase, whAmount);
 
   res.json({
     period,
-    vat: { base: vatBase, tax: vatAmount, creditNotesDeducted: credits.n },
-    withholding: { base: whBase, tax: whAmount },
+    vat: { base: vatBase, outputVat: vatAmount, inputVat, netPayable: netVat, creditNotesDeducted: credits.n, locked: vatLocked },
+    withholding: { base: whBase, tax: whAmount, locked: whLocked },
   });
 });
 
-function upsert(period: string, taxType: string, base: number, tax: number) {
-  const existing = db.prepare(`SELECT id FROM tax_filings WHERE period = ? AND tax_type = ?`).get(period, taxType) as any;
+/** Returns false (and changes nothing) when the filing was already marked filed/paid: a closed period must not silently change. */
+function upsert(period: string, taxType: string, base: number, tax: number, detail?: object): boolean {
+  const existing = db.prepare(`SELECT id, status FROM tax_filings WHERE period = ? AND tax_type = ?`).get(period, taxType) as any;
+  const d = detail ? JSON.stringify(detail) : null;
   if (existing) {
-    db.prepare(`UPDATE tax_filings SET base_amount = ?, tax_amount = ? WHERE id = ?`).run(round2(base), round2(tax), existing.id);
+    if (existing.status !== "due") return false;
+    db.prepare(`UPDATE tax_filings SET base_amount = ?, tax_amount = ?, detail = ? WHERE id = ?`).run(round2(base), round2(tax), d, existing.id);
   } else {
-    db.prepare(`INSERT INTO tax_filings (id, period, tax_type, base_amount, tax_amount, due_date) VALUES (?,?,?,?,?,?)`)
-      .run(nanoid(), period, taxType, round2(base), round2(tax), nextMonthDeadline(period));
+    db.prepare(`INSERT INTO tax_filings (id, period, tax_type, base_amount, tax_amount, due_date, detail) VALUES (?,?,?,?,?,?,?)`)
+      .run(nanoid(), period, taxType, round2(base), round2(tax), nextMonthDeadline(period), d);
   }
+  return true;
 }
 
 function nextMonthDeadline(period: string): string {

@@ -19,7 +19,7 @@ dashboardRouter.get("/summary", (req, res) => {
   const unparsedSms = one(`SELECT COUNT(*) as c FROM payment_events WHERE verification_status = 'unparsed'${bw}`, ...bp).c;
   const verifiedSms = one(`SELECT COUNT(*) as c FROM payment_events WHERE verification_status = 'verified'${bw}`, ...bp).c;
   const openInvoices = one(`SELECT COUNT(*) as c, COALESCE(SUM(total_amount-amount_paid),0) as outstanding FROM invoices WHERE status IN ('open','partially_paid','overdue')${bw}`, ...bp);
-  const taxDue = one(`SELECT COALESCE(SUM(tax_amount),0) as v FROM tax_filings WHERE status = 'due'`).v; // company-wide by nature
+  const taxDue = one(`SELECT COALESCE(SUM(MAX(tax_amount,0)),0) as v FROM tax_filings WHERE status = 'due'`).v; // company-wide by nature
   const employeeCount = one(`SELECT COUNT(*) as c FROM employees WHERE active = 1${bw}`, ...bp).c;
   const einv = one(
     `SELECT COALESCE(SUM(status = 'pending'),0) AS pending, COALESCE(SUM(status = 'registered'),0) AS registered, COALESCE(SUM(status = 'rejected'),0) AS rejected FROM einvoices WHERE 1=1${bw}`, ...bp
