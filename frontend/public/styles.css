@@ -275,3 +275,29 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .copilot-log thead th, .copilot-log tbody td { white-space: normal; padding: 8px 8px; }
 .copilot-log tbody td:first-child, .copilot-log thead th:first-child { padding-left: 8px; }
 .copilot-log tbody td:last-child, .copilot-log thead th:last-child { padding-right: 8px; }
+
+/* ---------- Notifications ---------- */
+.notif-btn { position: relative; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.notif-btn:hover { background: var(--surface-alt); }
+.notif-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.notif-count { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.notif-count[hidden] { display: none; }
+.notif-panel { position: fixed; top: 76px; right: 20px; width: min(430px, calc(100vw - 24px)); max-height: calc(100vh - 96px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 12px 40px rgba(15, 43, 36, 0.22); z-index: 60; overflow: hidden; }
+.notif-panel[hidden] { display: none; }
+.notif-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px; border-bottom: 1px solid #efece3; }
+.notif-title { font-family: "Space Grotesk", Inter, sans-serif; font-size: 18px; font-weight: 700; }
+.notif-tabs { padding: 10px 12px 0; margin-bottom: 4px; }
+.notif-list { overflow-y: auto; flex: 1; min-height: 80px; }
+.notif-item { padding: 12px 16px; border-top: 1px solid #efece3; }
+.notif-item.is-read { opacity: 0.62; }
+.notif-item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.notif-item-title { font-weight: 600; }
+.notif-time { margin-left: auto; }
+.notif-item-text { font-size: 14px; margin: 4px 0 8px; color: #2b3a33; }
+.notif-item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.notif-settings { border-top: 1px solid #efece3; padding: 10px 16px; font-size: 14px; }
+.notif-settings summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.notif-settings-body { padding: 8px 0 4px; }
+.notif-check { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; min-height: 34px; font-size: 14px; }
+.notif-desktop { margin-top: 10px; padding-top: 10px; border-top: 1px solid #efece3; }
+@media (max-width: 860px) { .notif-panel { top: 60px; right: 12px; } }

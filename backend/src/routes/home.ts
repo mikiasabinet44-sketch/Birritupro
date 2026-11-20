@@ -156,3 +156,88 @@ homeRouter.get("/briefing", (req, res) => {
     items,
   });
 });
+
+/**
+ * Notifications: everything the owner should hear about, newest first.
+ * Each item has a stable `key` (the same event always has the same key), so the app can remember
+ * what was read and only alert for what is new. Read-only: nothing here changes the books.
+ * type: payment | review | unread | invoice | stock | tax | payroll
+ */
+homeRouter.get("/notifications", (req, res) => {
+  const bc = branchClause(req);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const dayDiff = (d: string) => Math.round((new Date(d).getTime() - new Date(today).getTime()) / 86400000);
+  const etb = (n: number) => `ETB ${round2(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  type Level = "info" | "attention" | "urgent";
+  const items: Array<{ key: string; type: string; level: Level; title: string; text: string; route: string; at: string }> = [];
+
+  // Payments received in the last 3 days
+  for (const p of db.prepare(
+    `SELECT id, provider, amount, direction, counterparty_name, received_at, verification_status FROM payment_events
+     WHERE parsed_ok = 1 AND amount IS NOT NULL AND direction != 'debit'
+       AND verification_status NOT IN ('duplicate','rejected','unparsed') AND received_at >= datetime('now','-3 days')${bc.sql}
+     ORDER BY received_at DESC LIMIT 25`
+  ).all(...bc.params) as any[]) {
+    const who = (p.counterparty_name ?? "").trim() || "an unnamed sender";
+    items.push({ key: `pay:${p.id}`, type: "payment", level: "info", title: "Money received", text: `${etb(p.amount)} from ${who} via ${LABELS[p.provider] ?? p.provider}.`, route: "payments", at: p.received_at });
+  }
+
+  // Payments that need a look, and messages that could not be read
+  for (const p of db.prepare(
+    `SELECT id, provider, amount, counterparty_name, received_at FROM payment_events
+     WHERE verification_status = 'pending' AND parsed_ok = 1${bc.sql} ORDER BY received_at DESC LIMIT 25`
+  ).all(...bc.params) as any[]) {
+    items.push({ key: `review:${p.id}`, type: "review", level: "attention", title: "Payment needs a look", text: `${etb(p.amount ?? 0)} via ${LABELS[p.provider] ?? p.provider} could not be matched to one invoice.`, route: "payments", at: p.received_at });
+  }
+  for (const p of db.prepare(
+    `SELECT id, provider, received_at FROM payment_events WHERE verification_status = 'unparsed'${bc.sql} ORDER BY received_at DESC LIMIT 15`
+  ).all(...bc.params) as any[]) {
+    items.push({ key: `unread:${p.id}`, type: "unread", level: "attention", title: "Message could not be read", text: `A ${LABELS[p.provider] ?? p.provider} message needs to be entered by hand.`, route: "payments", at: p.received_at });
+  }
+
+  // Invoices: overdue, and due within 3 days
+  const ic = branchClause(req, "invoices.branch_id");
+  for (const i of db.prepare(
+    `SELECT invoices.id, invoice_number, due_date, total_amount - amount_paid AS owed, COALESCE(customers.name,'a customer') AS customer
+     FROM invoices LEFT JOIN customers ON customers.id = invoices.customer_id
+     WHERE status IN ('open','partially_paid','overdue') AND due_date IS NOT NULL AND due_date <= date('now','+3 days')${ic.sql}
+     ORDER BY due_date LIMIT 30`
+  ).all(...ic.params) as any[]) {
+    const d = dayDiff(i.due_date);
+    if (d < 0) items.push({ key: `inv:${i.id}:overdue`, type: "invoice", level: "urgent", title: "Invoice overdue", text: `${i.invoice_number} from ${i.customer} is ${-d} day${d === -1 ? "" : "s"} overdue. ${etb(i.owed)} still unpaid.`, route: "invoices", at: i.due_date });
+    else items.push({ key: `inv:${i.id}:soon`, type: "invoice", level: "attention", title: "Invoice due soon", text: `${i.invoice_number} from ${i.customer} is due ${d === 0 ? "today" : `in ${d} day${d === 1 ? "" : "s"}`}. ${etb(i.owed)} outstanding.`, route: "invoices", at: i.due_date });
+  }
+
+  // Stock
+  for (const s of reorderSuggestions(branchOf(req)).suggestions.slice(0, 20)) {
+    items.push({ key: `stock:${s.productId}:${s.branchId}:${s.urgency}`, type: "stock", level: s.urgency === "urgent" ? "urgent" : "attention", title: s.onHand <= 0 ? "Out of stock" : "Running low", text: `${s.name} at ${s.branchName}: ${s.onHand} ${s.unit} left${s.daysOfCover != null ? (Math.round(s.daysOfCover) < 1 ? ", less than a day of cover" : `, about ${Math.round(s.daysOfCover)} day${Math.round(s.daysOfCover) === 1 ? "" : "s"} of cover`) : ""}. Suggested order: ${s.suggestedQty}.`, route: "inventory", at: today });
+  }
+
+  // Tax filings due within 10 days (or already late)
+  for (const t of db.prepare(
+    `SELECT id, tax_type, tax_amount, due_date FROM tax_filings WHERE status = 'due' AND tax_amount > 0 AND due_date IS NOT NULL ORDER BY due_date LIMIT 10`
+  ).all() as any[]) {
+    const d = dayDiff(t.due_date);
+    if (d > 10) continue;
+    const bucket = d < 0 ? "late" : d <= 3 ? "3d" : "10d";
+    const name = String(t.tax_type).replace(/_/g, " ");
+    items.push({ key: `tax:${t.id}:${bucket}`, type: "tax", level: d < 0 ? "urgent" : d <= 3 ? "urgent" : "attention", title: d < 0 ? "Tax is late" : "Tax due soon", text: `${name} of ${etb(t.tax_amount)} is ${d < 0 ? `${-d} day${d === -1 ? "" : "s"} overdue` : d === 0 ? "due today" : `due in ${d} day${d === 1 ? "" : "s"}`}.`, route: "tax", at: t.due_date });
+  }
+
+  // Staff pay: a draft run waiting for approval, or this month's run not started near month end
+  const period = today.slice(0, 7);
+  for (const r of db.prepare(`SELECT id, period FROM payroll_runs WHERE status = 'draft' ORDER BY period DESC LIMIT 3`).all() as any[]) {
+    items.push({ key: `payroll:${r.id}:draft`, type: "payroll", level: "attention", title: "Staff pay waiting for approval", text: `The ${r.period} pay run is ready to check and approve.`, route: "payroll", at: today });
+  }
+  const staff = (db.prepare(`SELECT COUNT(*) AS c FROM employees WHERE active = 1${bc.sql}`).get(...bc.params) as any).c;
+  const hasRun = db.prepare(`SELECT 1 FROM payroll_runs WHERE period = ?`).get(period);
+  const dom = now.getUTCDate();
+  if (staff > 0 && !hasRun && dom >= 25) {
+    items.push({ key: `payroll:${period}:start`, type: "payroll", level: dom >= 28 ? "urgent" : "attention", title: "Staff pay is coming up", text: `The ${period} pay run for ${staff} staff hasn't been started yet.`, route: "payroll", at: today });
+  }
+
+  const rank = { urgent: 0, attention: 1, info: 2 } as const;
+  items.sort((a, b) => rank[a.level] - rank[b.level] || (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  res.json({ scope: branchName(branchOf(req)), generatedAt: now.toISOString(), count: items.length, items });
+});
