@@ -54,6 +54,9 @@ const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webmanifest": "application/manifest+json",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 function serveStatic(urlPath: string, res: http.ServerResponse): boolean {
@@ -200,7 +203,8 @@ const server = http.createServer((req, res) => {
   // Not an API route: try serving the frontend as static files (SPA fallback to index.html).
   if (method === "GET") {
     if (serveStatic(url.pathname, res)) return;
-    if (serveStatic("/", res)) return;
+    // A missing file (has an extension) is a real 404; only page-like paths fall back to the app.
+    if (!path.extname(url.pathname) && serveStatic("/", res)) return;
   }
 
   res.writeHead(404, { "Content-Type": "application/json" });
