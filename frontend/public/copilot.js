@@ -35,36 +35,46 @@ function sourcesBodyHtml(src) {
        <ul class="src-legend">${segs.map((s) => `<li><span class="src-dot ${SRC_COLORS[s.key] ?? "src-other"}" aria-hidden="true"></span>${esc(s.label)} <b>${s.pct}%</b></li>`).join("")}</ul>`
     : `<div class="empty">No money has come in for ${esc(periodLabel)} yet.</div>`;
 
-  const logo = (p, label, txt) => `<span class="wc-logo" aria-hidden="true"><span class="wc-letters">${esc(txt)}</span><img src="/logos/${p}.png" alt="" onerror="this.remove()"></span>`;
-  const cards = src.sources.map((s) => {
-    const cls = SRC_COLORS[s.provider] ?? "src-other";
-    const empty = s.count === 0;
-    const txt = s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3);
-    return `<div class="src-card wc ${cls}" role="group" aria-label="${esc(s.label)}">
-      <div class="wc-top">${logo(s.provider.toLowerCase(), s.label, txt)}
-        <div class="wc-name"><div class="src-name">${esc(s.label)}</div>${s.fullName !== s.label ? `<div class="wc-sub">${esc(s.fullName)}</div>` : ""}</div>
-        <span class="wc-chip" aria-hidden="true"></span></div>
-      <div class="wc-label">Money in · ${esc(periodLabel)}</div>
-      ${empty
-        ? `<div class="src-amount wc-zero">No payments yet</div><div class="wc-sub">Nothing received through ${esc(s.label)}.</div>`
-        : `<div class="src-amount">${money(s.inflow)}</div>
-           <div class="wc-stats"><span><b>${s.count}</b> payment${s.count === 1 ? "" : "s"}</span><span><b>${s.sharePct}%</b> of money in</span>${s.outflow > 0 ? `<span>Paid out <b>${money(s.outflow)}</b></span>` : ""}</div>
-           ${s.topPayers.length ? `<div class="wc-sub" style="margin-top:8px">Top senders: ${s.topPayers.map((p) => esc(p.name)).join(", ")}</div>` : ""}
-           <div class="wc-foot"><span class="wc-sub">Last ${esc(timeAgo(s.lastAt))}</span>${s.needsReview > 0 ? ` <span class="wc-review">${s.needsReview} to review</span>` : ""}</div>`}
+  const logo = (p, txt) => `<span class="wc-logo" aria-hidden="true"><span class="wc-letters">${esc(txt)}</span><img src="/logos/${p}.png" alt="" onerror="this.remove()"></span>`;
+  const amountOnly = (n) => money(n).replace(/^ETB\s*/, "");
+  const arrow = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+  const card = (o) => `<div class="src-card wc ${o.cls}" role="group" aria-label="${esc(o.title)}">
+      <div class="wc-top">${o.logo}
+        <div class="wc-name"><div class="src-name">${esc(o.title)}</div><span class="wc-pill">${esc(o.sub)}</span></div>
+        ${o.tag ? `<span class="wc-tag">${esc(o.tag)}</span>` : ""}</div>
+      <div class="wc-field">${o.field}</div>
+      <div class="wc-bottom">
+        <div><div class="wc-label">Money in · ${esc(periodLabel)}</div>
+          <div class="wc-amount">${o.empty ? `<span class="wc-zero">None yet</span>` : `${esc(amountOnly(o.amount))}<span class="wc-cur">ETB</span>`}</div></div>
+        <button type="button" class="wc-btn" data-src-go="${o.go}">View detail ${arrow}</button></div>
+      ${o.note ? `<div class="wc-note">${o.note}</div>` : ""}
     </div>`;
-  }).join("");
+  const cards = src.sources.map((s) => card({
+    cls: SRC_COLORS[s.provider] ?? "src-other", title: s.label, sub: s.fullName !== s.label ? s.fullName : "Mobile money",
+    logo: logo(s.provider.toLowerCase(), s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3)),
+    tag: s.needsReview > 0 ? `${s.needsReview} to review` : (s.count > 0 ? `Last ${timeAgo(s.lastAt)}` : ""),
+    field: s.count === 0 ? `Nothing received yet` : `<b>${s.count}</b> payment${s.count === 1 ? "" : "s"} · <b>${s.sharePct}%</b> of money in`,
+    empty: s.count === 0, amount: s.inflow, go: "payments",
+    note: s.topPayers.length ? `Top senders: ${s.topPayers.map((p) => esc(p.name)).join(", ")}` : (s.outflow > 0 ? `Paid out ${esc(money(s.outflow))}` : ""),
+  })).join("");
 
   const o = src.other;
-  const otherCard = `<div class="src-card wc src-other" role="group" aria-label="Other entries">
-      <div class="wc-top"><span class="wc-logo" aria-hidden="true"><span class="wc-letters">+</span></span>
-        <div class="wc-name"><div class="src-name">Other entries</div><div class="wc-sub">${esc(o.label)}</div></div></div>
-      <div class="wc-label">Money in · ${esc(periodLabel)}</div>
-      ${o.count === 0 ? `<div class="src-amount wc-zero">None yet</div>` : `<div class="src-amount">${money(o.inflow)}</div>
-        <div class="wc-stats"><span><b>${o.count}</b> entr${o.count === 1 ? "y" : "ies"}</span><span><b>${o.sharePct}%</b> of money in</span></div>`}
-    </div>`;
+  const otherCard = card({
+    cls: "src-other", title: "Other entries", sub: "Cash, invoices & other", logo: logo("other", "+"), tag: "",
+    field: o.count === 0 ? `Nothing yet` : `<b>${o.count}</b> entr${o.count === 1 ? "y" : "ies"} · <b>${o.sharePct}%</b> of money in`,
+    empty: o.count === 0, amount: o.inflow, go: "transactions", note: "",
+  });
+  const count = src.sources.length + 1;
+  const dots = Array.from({ length: count }, (_, i) => `<span class="src-dot-nav${i === 0 ? " on" : ""}" aria-hidden="true"></span>`).join("");
 
   return `<div class="src-total"><span class="src-total-num">${money(src.totalIn)}</span><span class="muted"> came in · ${esc(periodLabel)} · ${esc(src.scope)}</span></div>
-    ${bar}<div class="src-grid">${cards}${otherCard}</div>`;
+    ${bar}
+    <div class="src-carousel">
+      <button type="button" class="src-nav src-prev" aria-label="Previous card" data-src-nav="-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="src-track" tabindex="0" role="region" aria-label="Money sources, swipe or use arrows">${cards}${otherCard}</div>
+      <button type="button" class="src-nav src-next" aria-label="Next card" data-src-nav="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="src-dots" aria-hidden="true">${dots}</div>`;
 }
 
 function sourcesPanelHtml(src) {
@@ -241,3 +251,28 @@ function closeCopilot() {
 
 document.addEventListener("DOMContentLoaded", buildCopilot);
 if (document.readyState !== "loading") buildCopilot();
+
+
+// Money-source carousel: arrows, dots and the "View detail" buttons (delegated, because the panel is re-rendered).
+document.addEventListener("click", (e) => {
+  const nav = e.target.closest("[data-src-nav]");
+  if (nav) {
+    const track = nav.closest(".src-carousel")?.querySelector(".src-track");
+    const card = track?.querySelector(".src-card");
+    if (track && card) track.scrollBy({ left: Number(nav.dataset.srcNav) * (card.offsetWidth + 14), behavior: "smooth" });
+    return;
+  }
+  const go = e.target.closest("[data-src-go]");
+  if (go) navigate(go.dataset.srcGo);
+});
+document.addEventListener("scroll", (e) => {
+  const t = e.target;
+  if (!(t instanceof Element) || !t.classList.contains("src-track")) return;
+  const card = t.querySelector(".src-card");
+  if (!card) return;
+  const i = Math.round(t.scrollLeft / (card.offsetWidth + 14));
+  t.parentElement.nextElementSibling?.querySelectorAll(".src-dot-nav").forEach((d, n) => d.classList.toggle("on", n === i));
+  const car = t.parentElement;
+  car.classList.toggle("at-start", t.scrollLeft < 4);
+  car.classList.toggle("at-end", t.scrollLeft + t.clientWidth >= t.scrollWidth - 4);
+}, true);

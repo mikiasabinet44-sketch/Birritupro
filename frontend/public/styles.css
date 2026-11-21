@@ -378,4 +378,38 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 }
 @media (display-mode: standalone) { body { user-select: none; -webkit-user-select: none; } input, textarea { user-select: text; -webkit-user-select: text; } }
 
-.src-card.wc.src-other { grid-column: 1 / -1; min-height: 0; }
+
+/* ---------- Money-source carousel (bank-card style) ---------- */
+.src-carousel { position: relative; margin-top: 4px; }
+.src-track { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 4px 2px 10px; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; }
+.src-track::-webkit-scrollbar { display: none; }
+.src-track:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 18px; }
+.src-track .src-card.wc { flex: 0 0 min(340px, 84%); scroll-snap-align: start; min-height: 208px; grid-column: auto; display: flex; flex-direction: column; }
+.src-nav { position: absolute; top: 50%; transform: translateY(-60%); z-index: 3; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #d8d4c8; background: #fff; color: #14201b; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(15,43,36,.18); }
+.src-prev { left: -10px; } .src-next { right: -10px; }
+.src-carousel.at-start .src-prev { display: none; }
+.src-carousel.at-end .src-next { display: none; }
+@media (hover: none) { .src-nav { display: none; } }
+.src-dots { display: flex; justify-content: center; gap: 6px; margin-top: 2px; }
+.src-dot-nav { width: 7px; height: 7px; border-radius: 50%; background: #cfcabb; transition: width .2s, background .2s; }
+.src-dot-nav.on { width: 20px; border-radius: 4px; background: var(--primary); }
+.wc-pill { display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.28); font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc.src-boa .wc-pill { background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.16); }
+.wc-tag { flex: none; align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.92); color: #3b2a00; font-size: 12px; font-weight: 700; }
+.wc-field { display: flex; align-items: center; gap: 8px; margin: 2px 0 16px; padding: 10px 14px; border-radius: 999px; background: rgba(0,0,0,.2); border: 1px solid rgba(255,255,255,.18); font-size: 14px; }
+.wc.src-boa .wc-field { background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.14); }
+.wc-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: auto; }
+.wc-amount { display: flex; align-items: center; gap: 8px; font-family: "Space Grotesk", sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+.wc-cur { font-family: Inter, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,.22); }
+.wc.src-boa .wc-cur { background: rgba(0,0,0,.1); }
+.wc-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.16); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.wc.src-boa .wc-btn { border-color: rgba(0,0,0,.25); background: rgba(0,0,0,.08); }
+.wc-btn:hover { background: rgba(255,255,255,.28); }
+.wc-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.wc-note { margin-top: 10px; font-size: 13px; opacity: .9; overflow-wrap: anywhere; }
+.wc-zero { font-size: 20px; opacity: .9; }
+@media (max-width: 860px) { .src-track .src-card.wc { flex-basis: 82%; } .wc-amount { font-size: 26px; } }
+.wc-bottom { flex-wrap: wrap; row-gap: 12px; }
+.wc-label { white-space: nowrap; }
+.wc-field { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+@media (max-width: 860px) { .wc-field { font-size: 13px; padding: 9px 12px; } .wc-btn { width: 100%; justify-content: center; } .wc-bottom > div { width: 100%; } }
