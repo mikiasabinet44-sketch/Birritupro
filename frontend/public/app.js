@@ -119,6 +119,7 @@ const STATUS_PILL = {
 
 const ROUTES = [
   { id: "dashboard", label: "Home", render: renderDashboard },
+  { id: "analytics", label: "Analytics", render: renderAnalytics },
   { id: "transactions", label: "Money in & out", render: renderTransactions },
   { id: "payments", label: "Payment checks", render: renderPayments },
   { id: "invoices", label: "Invoices", render: renderInvoices },
@@ -132,6 +133,7 @@ const ROUTES = [
 
 // Simple 20px outline icons (stroke = currentColor), one per route.
 const NAV_ICONS = {
+  analytics: '<path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/>',
   dashboard: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   transactions: '<path d="M7 4v14m0 0l-3-3m3 3l3-3M17 20V6m0 0l-3 3m3-3l3 3"/>',
   payments: '<path d="M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
@@ -192,20 +194,7 @@ async function renderDashboard(view) {
 
   view.innerHTML = `
     ${src ? sourcesPanelHtml(src) : ""}
-    ${brief ? `<div class="two-col">${todayPanelHtml(brief)}${askBarHtml()}</div>` : ""}
-    <div class="grid-cards">
-      ${card("Net position", money(s.net), `${money(s.income)} in · ${money(Math.abs(s.expense))} out`)}
-      ${card("Awaiting review", s.pendingReview, "AI-suggested transactions to confirm")}
-      ${card("Unparsed SMS", s.unparsedSms, "Needs manual entry/fix")}
-      ${card("Open invoices", s.openInvoiceCount, `${money(s.openInvoiceOutstanding)} outstanding`)}
-      ${card("Tax due", money(s.taxDue), "Across all pending filings")}
-      ${card("Employees", s.employeeCount, "Active on payroll")}
-      ${card("Inventory value", money(s.inventoryValue), `${s.reorderCount} item(s) to reorder`)}
-      ${card("e-Invoices", `${s.einvoiceRegistered} registered`, `${s.einvoicePending} pending · ${s.einvoiceRejected} rejected`)}
-      ${card("AI: needs attention", s.attention.high + s.attention.medium + s.attention.low, `${s.attention.high} high · ${s.attention.medium} medium — see AI Insights`)}
-    </div>
-    <div class="muted small" style="margin:-10px 0 16px">Showing: <b>${esc(s.scope)}</b> — change branch from the selector in the top bar.</div>
-
+    ${brief ? todayPanelHtml(brief) : ""}
     <div class="two-col">
       <div class="panel">
         <div class="panel-head"><h3>Recent ledger activity</h3></div>

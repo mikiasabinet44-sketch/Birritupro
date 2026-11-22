@@ -2,7 +2,7 @@
 // Network first (so you always get the latest version and live numbers); the saved copy is only a fallback.
 // API calls are never cached, so money figures are never stale.
 const CACHE = "birritu-shell-v1";
-const SHELL = ["/", "/styles.css", "/app.js", "/pro.js", "/copilot.js", "/notifications.js", "/mobile.js", "/qr.js"];
+const SHELL = ["/", "/styles.css", "/app.js", "/pro.js", "/copilot.js", "/notifications.js", "/analytics.js", "/mobile.js", "/qr.js"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {

@@ -20,6 +20,7 @@ import { payrollRouter } from "./routes/payroll.js";
 import { taxRouter } from "./routes/tax.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { homeRouter } from "./routes/home.js";
+import { analyticsRouter } from "./routes/analytics.js";
 import { branchesRouter } from "./routes/branches.js";
 import { inventoryRouter } from "./routes/inventory.js";
 import { einvoicesRouter } from "./routes/einvoices.js";
@@ -39,6 +40,7 @@ const mounts: Array<{ prefix: string[]; router: Router }> = [
   { prefix: ["api", "tax"], router: taxRouter },
   { prefix: ["api", "dashboard"], router: dashboardRouter },
   { prefix: ["api", "home"], router: homeRouter },
+  { prefix: ["api", "analytics"], router: analyticsRouter },
   { prefix: ["api", "branches"], router: branchesRouter },
   { prefix: ["api", "inventory"], router: inventoryRouter },
   { prefix: ["api", "einvoices"], router: einvoicesRouter },
