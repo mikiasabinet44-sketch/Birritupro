@@ -51,7 +51,24 @@ function buildTabbar() {
   sync();
 }
 
+// The original sidebar, unchanged, as a slide-out menu on phones (opened from the menu button in the top bar).
+function buildDrawer() {
+  const top = document.querySelector(".topbar"), side = document.querySelector(".sidebar");
+  if (!top || !side || document.getElementById("menu-btn")) return;
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.id = "menu-btn"; btn.className = "menu-btn"; btn.setAttribute("aria-label", "Open menu"); btn.setAttribute("aria-expanded", "false"); btn.setAttribute("aria-controls", "nav");
+  btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+  top.prepend(btn);
+  const scrim = document.createElement("div"); scrim.className = "nav-scrim"; document.body.appendChild(scrim);
+  const set = (open) => { document.body.classList.toggle("nav-open", open); btn.setAttribute("aria-expanded", String(open)); btn.setAttribute("aria-label", open ? "Close menu" : "Open menu"); };
+  btn.addEventListener("click", () => set(!document.body.classList.contains("nav-open")));
+  scrim.addEventListener("click", () => set(false));
+  side.addEventListener("click", (e) => { if (e.target.closest(".nav-item")) set(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("nav-open")) { set(false); btn.focus(); } });
+  window.matchMedia("(min-width: 861px)").addEventListener("change", (m) => { if (m.matches) set(false); });
+}
+
 window.addEventListener("load", () => {
-  buildTabbar();
+  buildTabbar(); buildDrawer();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 });

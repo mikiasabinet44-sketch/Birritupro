@@ -413,3 +413,82 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .wc-label { white-space: nowrap; }
 .wc-field { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 @media (max-width: 860px) { .wc-field { font-size: 13px; padding: 9px 12px; } .wc-btn { width: 100%; justify-content: center; } .wc-bottom > div { width: 100%; } }
+
+/* ---------- Phone: original sidebar as a slide-out menu, compact sizes ---------- */
+.menu-btn, .nav-scrim { display: none; }
+@media (max-width: 860px) {
+  .menu-btn { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border); background: #fff; color: var(--text); cursor: pointer; }
+  .sidebar { display: flex; position: fixed; z-index: 80; top: 0; bottom: 0; left: 0; width: min(272px, 84vw); height: auto; align-self: auto; transform: translateX(-104%); visibility: hidden; transition: transform .22s ease, visibility 0s .22s; padding-top: calc(16px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  body.nav-open .sidebar { transform: none; visibility: visible; transition: transform .22s ease; box-shadow: 8px 0 32px rgba(0,0,0,.35); }
+  .nav-scrim { position: fixed; inset: 0; z-index: 75; background: rgba(15,43,36,.5); }
+  body.nav-open .nav-scrim { display: block; }
+  body.nav-open { overflow: hidden; }
+
+  body { font-size: 14px; }
+  .topbar { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px; gap: 8px; }
+  .topbar h1 { font-size: 18px; }
+  #branch-select { min-height: 36px; font-size: 13px; max-width: 128px; }
+  .notif-btn { width: 38px; height: 38px; }
+  .view { padding: 10px 12px calc(84px + env(safe-area-inset-bottom)); }
+  .grid-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .card { padding: 12px; border-radius: 14px; }
+  .card .label { font-size: 12.5px; }
+  .card .value { font-size: 20px; }
+  .card .sub { font-size: 12px; }
+  .panel { margin-bottom: 12px; border-radius: 14px; }
+  .panel-head { padding: 10px 14px; }
+  .panel-head h3 { font-size: 16px; }
+  .panel-body { padding: 12px 14px; }
+  table { font-size: 13px; }
+  thead th { font-size: 11px; padding: 8px 10px; }
+  td { padding: 8px 10px; }
+  .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
+  .btn-sm { min-height: 34px; padding: 0 10px; font-size: 12.5px; }
+  .pill { font-size: 11px; padding: 2px 8px; }
+  .tabs { gap: 4px; margin-bottom: 10px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { min-height: 34px; font-size: 13px; padding: 0 12px; white-space: nowrap; flex: none; }
+  .form-grid { gap: 8px; }
+  .tabbar { padding-top: 4px; }
+  .tab { min-height: 46px; font-size: 10.5px; }
+  .tab svg { width: 20px; height: 20px; }
+  .copilot-launch { min-height: 40px; font-size: 13px; padding: 0 12px; bottom: calc(68px + env(safe-area-inset-bottom)); }
+
+  .src-total-num { font-size: 24px; }
+  .src-legend { font-size: 13px; gap: 4px 12px; }
+  .src-track { gap: 10px; }
+  .src-track .src-card.wc { flex-basis: 78%; min-height: 168px; padding: 14px; border-radius: 16px; }
+  .wc-top { margin-bottom: 10px; gap: 10px; }
+  .wc-logo { width: 38px; height: 38px; border-radius: 10px; }
+  .wc .src-name { font-size: 15px; }
+  .wc-pill { font-size: 11px; padding: 1px 8px; }
+  .wc-tag { font-size: 11px; padding: 2px 8px; }
+  .wc-field { margin: 0 0 10px; padding: 7px 12px; font-size: 12.5px; }
+  .wc-amount { font-size: 22px; }
+  .wc-cur { font-size: 11px; }
+  .wc-label { font-size: 10.5px; }
+  .wc-btn { min-height: 38px; font-size: 13px; }
+  .wc-note { font-size: 12px; margin-top: 8px; }
+}
+@media (max-width: 860px) {
+  .sidebar { flex-direction: column; flex-wrap: nowrap; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+  .sidebar::-webkit-scrollbar { display: none; }
+  .sidebar .brand { display: flex; padding: 0 8px 14px; }
+  .sidebar #nav, .sidebar nav { display: flex; flex-direction: column; flex-wrap: nowrap; overflow: visible; gap: 4px; width: 100%; padding: 0; }
+  .sidebar .nav-item { width: 100%; box-sizing: border-box; white-space: nowrap; flex: none; }
+  .sidebar .sidebar-footer { display: block; margin-top: auto; }
+}
+@media (max-width: 860px) {
+  .topbar { flex-wrap: wrap; align-items: center; }
+  .topbar > .topbar-right { display: contents; }
+  .topbar h1 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #page-actions { order: 9; flex: 0 0 100%; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  #page-actions:empty { display: none; }
+  #page-actions .btn { flex: none; white-space: nowrap; }
+}
+@media (max-width: 860px) {
+  tbody td { padding: 8px 8px; font-size: 13px; }
+  tbody td:first-child, thead th:first-child { padding-left: 14px; }
+  tbody td:last-child, thead th:last-child { padding-right: 14px; }
+  thead th { padding: 8px 8px; }
+}
