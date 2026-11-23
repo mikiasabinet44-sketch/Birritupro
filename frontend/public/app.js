@@ -241,9 +241,46 @@ function table(headers, rows, emptyMsg = "Nothing here yet.") {
 async function renderTransactions(view) {
   document.getElementById("page-actions").innerHTML = `<button class="btn btn-primary" id="add-txn">+ Add transaction</button>`;
 
-  const txns = await api("/transactions");
+  const prov = window.TXN_PROVIDER || "";
+  const txns = prov ? [] : await api("/transactions");
+  const tabsHtml = `<div class="pocket-tabs" role="tablist">${[["", "All transactions"], ["CBE", "Commercial Bank"], ["TELEBIRR", "Telebirr"], ["BOA", "Bank of Abyssinia"]]
+    .map(([k, l]) => `<button type="button" role="tab" aria-selected="${prov === k}" class="pocket-tab${prov === k ? " on" : ""}${k ? " pt-" + k.toLowerCase() : ""}" data-prov="${k}">${l}</button>`).join("")}</div>`;
+  const bindTabs = () => view.querySelectorAll("[data-prov]").forEach((b) => (b.onclick = () => { window.TXN_PROVIDER = b.dataset.prov; renderTransactions(view); }));
+  if (prov) {
+    document.getElementById("page-actions").innerHTML = `<button class="btn" id="pocket-refresh">Refresh</button>`;
+    const d = await api(`/home/provider?provider=${prov}`);
+    const fmt = (n) => money(n).replace(/^ETB\s*/, "");
+    const day = (iso) => new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z")).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const tm = (iso) => new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z")).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    view.innerHTML = `${tabsHtml}
+      <div class="pocket-hero pk-${prov.toLowerCase()}"><div class="pk-logo"><img src="/logos/${prov.toLowerCase()}.png" alt="" onerror="this.remove()"><span>${esc(d.label.slice(0, 3))}</span></div>
+        <div class="pk-name">${esc(d.fullName)}</div>
+        <div class="pk-acct">Account ${esc(d.account)}</div>
+        <div class="pk-big">${d.balance === null ? "—" : fmt(d.balance)}<small>${d.balance === null ? "" : "ETB"}</small></div>
+        <div class="pk-sub">${d.balance === null ? "Balance appears once a message with a balance arrives" : "Last known balance"} · ${d.count} transaction${d.count === 1 ? "" : "s"}${d.lastAt ? " · last " + esc(day(d.lastAt)) + " " + esc(tm(d.lastAt)) : ""} · ${esc(d.scope)}</div></div>
+      <div class="pocket-stats"><div><span>In this month</span><b class="pk-in">${fmt(d.inMonth)}</b></div><div><span>Out this month</span><b class="pk-out">${fmt(d.outMonth)}</b></div><div><span>In, all time</span><b>${fmt(d.inAll)}</b></div><div><span>Out, all time</span><b>${fmt(d.outAll)}</b></div></div>
+      <div class="pocket-filter" role="group" aria-label="Filter">${["All", "In", "Out"].map((f, i) => `<button type="button" class="pf${i === 0 ? " on" : ""}" data-f="${f}">${f}</button>`).join("")}</div>
+      <div id="pocket-list"></div>`;
+    const draw = (f) => {
+      const items = d.items.filter((t) => f === "All" || (f === "In" ? t.amount >= 0 : t.amount < 0));
+      const el = document.getElementById("pocket-list");
+      if (!items.length) { el.innerHTML = `<div class="panel"><div class="empty">No ${f === "All" ? "" : f.toLowerCase() + " "}transactions on this account yet.</div></div>`; return; }
+      let last = "";
+      el.innerHTML = items.map((t) => {
+        const h = day(t.at) === last ? "" : `<div class="pk-day">${esc(last = day(t.at))}</div>`;
+        return `${h}<div class="pk-row"><span class="pk-badge pk-${prov.toLowerCase()}">${esc(d.label.slice(0, 3))}</span>
+          <div class="pk-mid"><b>${esc(t.name)}</b><div class="muted small">${t.amount >= 0 ? "Received" : "Paid out"} · ${esc(tm(t.at))}${t.reference ? " · ref " + esc(t.reference) : ""}${t.status === "pending" ? " · needs review" : ""}${t.invoice ? " · matched to invoice" : ""}</div></div>
+          <div class="pk-amt ${t.amount >= 0 ? "pk-in" : "pk-out"}">${t.amount >= 0 ? "+" : "−"}${fmt(Math.abs(t.amount))}</div></div>`;
+      }).join("");
+    };
+    draw("All");
+    view.querySelectorAll(".pf").forEach((b) => (b.onclick = () => { view.querySelectorAll(".pf").forEach((x) => x.classList.toggle("on", x === b)); draw(b.dataset.f); }));
+    document.getElementById("pocket-refresh").onclick = () => renderTransactions(view);
+    bindTabs();
+    return;
+  }
 
-  view.innerHTML = `
+  view.innerHTML = `${tabsHtml}
     <div class="panel" id="add-txn-panel" style="display:none">
       <div class="panel-head"><h3>New transaction</h3></div>
       <div class="panel-body">
@@ -266,6 +303,7 @@ async function renderTransactions(view) {
     </div>
   `;
 
+  bindTabs();
   document.getElementById("add-txn").onclick = () => {
     const p = document.getElementById("add-txn-panel");
     p.style.display = p.style.display === "none" ? "block" : "none";

@@ -42,6 +42,7 @@ function sourcesBodyHtml(src) {
       <div class="wc-top">${o.logo}
         <div class="wc-name"><div class="src-name">${esc(o.title)}</div><span class="wc-pill">${esc(o.sub)}</span></div>
         ${o.tag ? `<span class="wc-tag">${esc(o.tag)}</span>` : ""}</div>
+      <div class="wc-chipline"><span class="wc-chip" aria-hidden="true"></span>${o.acct ? `<span class="wc-acct" title="Account number">${esc(o.acct.replace(/(.{4})(?=.)/g, "$1 "))}</span><button type="button" class="wc-copy" data-copy="${esc(o.acct)}" aria-label="Copy account number">Copy</button>` : `<span class="wc-acct">Cash &amp; invoices</span>`}</div>
       <div class="wc-field">${o.field}</div>
       <div class="wc-bottom">
         <div><div class="wc-label">Money in · ${esc(periodLabel)}</div>
@@ -54,7 +55,7 @@ function sourcesBodyHtml(src) {
     logo: logo(s.provider.toLowerCase(), s.provider === "TELEBIRR" ? "Tb" : s.label.slice(0, 3)),
     tag: s.needsReview > 0 ? `${s.needsReview} to review` : (s.count > 0 ? `Last ${timeAgo(s.lastAt)}` : ""),
     field: s.count === 0 ? `Nothing received yet` : `<b>${s.count}</b> payment${s.count === 1 ? "" : "s"} · <b>${s.sharePct}%</b> of money in`,
-    empty: s.count === 0, amount: s.inflow, go: "payments",
+    empty: s.count === 0, amount: s.inflow, go: `provider:${s.provider}`, acct: s.account,
     note: s.topPayers.length ? `Top senders: ${s.topPayers.map((p) => esc(p.name)).join(", ")}` : (s.outflow > 0 ? `Paid out ${esc(money(s.outflow))}` : ""),
   })).join("");
 
@@ -262,8 +263,14 @@ document.addEventListener("click", (e) => {
     if (track && card) track.scrollBy({ left: Number(nav.dataset.srcNav) * (card.offsetWidth + 14), behavior: "smooth" });
     return;
   }
+  const cp = e.target.closest("[data-copy]");
+  if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => toast("Account number copied")).catch(() => {}); return; }
   const go = e.target.closest("[data-src-go]");
-  if (go) navigate(go.dataset.srcGo);
+  if (go) {
+    const g = go.dataset.srcGo;
+    if (g.startsWith("provider:")) window.TXN_PROVIDER = g.slice(9); else window.TXN_PROVIDER = "";
+    navigate(g.startsWith("provider:") ? "transactions" : g);
+  }
 });
 document.addEventListener("scroll", (e) => {
   const t = e.target;

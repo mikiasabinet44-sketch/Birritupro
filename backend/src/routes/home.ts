@@ -7,10 +7,10 @@ import { detectAnomalies } from "../lib/ai/anomalies.js";
 export const homeRouter = createRouter();
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const PROVIDERS: Array<{ code: string; label: string }> = [
-  { code: "CBE", label: "Commercial Bank of Ethiopia" },
-  { code: "TELEBIRR", label: "Telebirr" },
-  { code: "BOA", label: "Bank of Abyssinia" },
+const PROVIDERS: Array<{ code: string; label: string; account: string }> = [
+  { code: "CBE", label: "Commercial Bank of Ethiopia", account: process.env.ACCOUNT_CBE ?? "1000599846321" },
+  { code: "TELEBIRR", label: "Telebirr", account: process.env.ACCOUNT_TELEBIRR ?? "0926684050" },
+  { code: "BOA", label: "Bank of Abyssinia", account: process.env.ACCOUNT_BOA ?? "170182057" },
 ];
 const LABELS: Record<string, string> = { CBE: "CBE", TELEBIRR: "Telebirr", BOA: "BOA", UNKNOWN: "Unrecognised sender" };
 
@@ -62,6 +62,7 @@ homeRouter.get("/sources", (req, res) => {
     const r = byProvider.get(code);
     return {
       provider: code,
+      account: PROVIDERS.find((p) => p.code === code)?.account ?? "",
       label: LABELS[code] ?? code,
       fullName: PROVIDERS.find((p) => p.code === code)?.label ?? LABELS[code] ?? code,
       inflow: round2(r?.inflow ?? 0),
@@ -240,4 +241,39 @@ homeRouter.get("/notifications", (req, res) => {
   const rank = { urgent: 0, attention: 1, info: 2 } as const;
   items.sort((a, b) => rank[a.level] - rank[b.level] || (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
   res.json({ scope: branchName(branchOf(req)), generatedAt: now.toISOString(), count: items.length, items });
+});
+
+/**
+ * Everything that went through one bank / wallet: money in, money out and each payment, newest first.
+ * ?provider=CBE|TELEBIRR|BOA  ?period=YYYY-MM|all (default: all)
+ */
+homeRouter.get("/provider", (req, res) => {
+  const code = String(req.query.get("provider") ?? "").toUpperCase();
+  const info = PROVIDERS.find((p) => p.code === code);
+  if (!info) throw new HttpError(400, "provider must be CBE, TELEBIRR or BOA");
+  const bc = branchClause(req);
+  const rows = db.prepare(
+    `SELECT id, amount, direction, counterparty_name, reference, balance_after, received_at, verification_status, matched_invoice_id
+     FROM payment_events
+     WHERE provider = ? AND parsed_ok = 1 AND amount IS NOT NULL AND verification_status NOT IN ('duplicate','rejected','unparsed')${bc.sql}
+     ORDER BY received_at DESC, created_at DESC LIMIT 500`
+  ).all(code, ...bc.params) as any[];
+  const month = new Date().toISOString().slice(0, 7);
+  const sum = (f: (r: any) => boolean) => round2(rows.filter(f).reduce((t, r) => t + r.amount, 0));
+  const isIn = (r: any) => r.direction !== "debit";
+  const withBal = rows.find((r) => r.balance_after !== null);
+  res.json({
+    provider: code, label: LABELS[code], fullName: info.label, account: info.account,
+    scope: branchName(branchOf(req)),
+    balance: withBal ? round2(withBal.balance_after) : null,
+    count: rows.length,
+    lastAt: rows[0]?.received_at ?? null,
+    inMonth: sum((r) => isIn(r) && r.received_at.slice(0, 7) === month),
+    outMonth: sum((r) => !isIn(r) && r.received_at.slice(0, 7) === month),
+    inAll: sum(isIn), outAll: sum((r) => !isIn(r)),
+    items: rows.map((r) => ({
+      id: r.id, at: r.received_at, amount: isIn(r) ? r.amount : -r.amount, name: r.counterparty_name || "Unnamed",
+      reference: r.reference, status: r.verification_status, invoice: !!r.matched_invoice_id,
+    })),
+  });
 });

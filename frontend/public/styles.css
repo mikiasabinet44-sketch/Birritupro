@@ -521,3 +521,72 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 }
 .an-wrap { white-space: normal; min-width: 130px; max-width: 260px; overflow-wrap: anywhere; }
 .an .table-wrap tbody td, .table-wrap tbody td { padding: 10px 10px; }
+
+/* Wide credit-card style provider cards */
+.src-track .src-card.wc { flex: 0 0 min(460px, 88%); aspect-ratio: 1.75 / 1; min-height: 0; padding: 20px 22px; border-radius: 20px; justify-content: space-between; }
+.wc-top { margin-bottom: 0; }
+.wc-chipline { display: flex; align-items: center; gap: 12px; margin: 4px 0; }
+.wc-chip { flex: none; width: 40px; height: 30px; border-radius: 7px; background: linear-gradient(135deg, #f3dc9a, #c9a24a); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); position: relative; }
+.wc-chip::after { content: ""; position: absolute; inset: 7px 9px; border: 1px solid rgba(0,0,0,.25); border-radius: 3px; }
+.wc-acct { font-family: "Space Grotesk", sans-serif; font-size: 21px; font-weight: 600; letter-spacing: .12em; white-space: nowrap; }
+.wc-copy { margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; opacity: .85; cursor: pointer; }
+.wc-field { margin: 0; padding: 0; background: none; border: 0; font-size: 13px; opacity: .9; }
+.wc.src-boa .wc-field { background: none; border: 0; }
+.wc-note { display: none; }
+.wc-amount { font-size: 28px; }
+@media (max-width: 860px) { .src-track .src-card.wc { flex-basis: 86%; padding: 14px 16px; border-radius: 16px; } .wc-acct { font-size: 16px; letter-spacing: .08em; } .wc-btn { width: auto; } .wc-bottom > div { width: auto; } .wc-amount { font-size: 22px; } .wc-copy { padding: 3px 8px; } .wc-label { font-size: 10px; } }
+
+/* Money in & out: bank tabs and single-account view */
+.pocket-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; scrollbar-width: none; }
+.pocket-tabs::-webkit-scrollbar { display: none; }
+.pocket-tab, .pf { flex: none; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; }
+.pocket-tab.on, .pf.on { background: #0f2b24; border-color: #0f2b24; color: #fff; }
+.pocket-hero { border-radius: 20px; padding: 22px; color: #fff; text-align: center; margin-bottom: 14px; background: linear-gradient(135deg, #7b3a9c, #4b1d68); }
+.pocket-hero.pk-telebirr { background: linear-gradient(135deg, #2a9a52, #15612f); }
+.pocket-hero.pk-boa { background: linear-gradient(135deg, #f7d04a, #e2aa14); color: #1d1a08; }
+.pk-logo { width: 52px; height: 52px; margin: 0 auto 8px; border-radius: 14px; background: #fff; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; font-weight: 800; color: #4b1d68; }
+.pk-logo img { position: absolute; inset: 5px; width: calc(100% - 10px); height: calc(100% - 10px); object-fit: contain; background: #fff; }
+.pk-name { font-weight: 600; } .pk-acct { opacity: .85; font-size: 14px; letter-spacing: .06em; }
+.pk-big { font-family: "Space Grotesk", sans-serif; font-size: 40px; font-weight: 700; margin: 8px 0 4px; } .pk-big small { font-size: 14px; margin-left: 8px; opacity: .85; }
+.pk-sub { font-size: 13px; opacity: .85; }
+.pocket-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.pocket-stats > div { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+.pocket-stats span { display: block; font-size: 12px; color: var(--muted); } .pocket-stats b { font-size: 18px; }
+.pk-in { color: #0f6b3a; } .pk-out { color: #b3402a; }
+.pocket-filter { display: flex; gap: 8px; margin-bottom: 8px; }
+.pk-day { margin: 16px 2px 6px; font-weight: 700; font-size: 14px; }
+.pk-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.pk-badge { flex: none; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 12px; background: #7b3a9c; }
+.pk-badge.pk-telebirr { background: #2a9a52; } .pk-badge.pk-boa { background: #e2aa14; color: #1d1a08; }
+.pk-mid { flex: 1; min-width: 0; overflow-wrap: anywhere; } .pk-amt { font-weight: 700; white-space: nowrap; }
+@media (max-width: 700px) { .pocket-stats { grid-template-columns: repeat(2, 1fr); } .pk-big { font-size: 32px; } }
+
+/* Wide bank-card look */
+.src-track .src-card.wc { flex: 0 0 min(560px, 88%); min-height: 250px; padding: 22px 26px; border-radius: 22px; box-shadow: 0 10px 26px rgba(20,20,40,.16); }
+.src-card.wc::after { right: -70px; top: -90px; width: 260px; height: 260px; }
+.src-card.wc::before { content: ""; position: absolute; left: -80px; bottom: -120px; width: 300px; height: 300px; border-radius: 50%; background: rgba(255,255,255,.07); pointer-events: none; }
+.wc-top { margin-bottom: 14px; }
+.wc-chipline { display: flex; align-items: center; gap: 14px; margin: 4px 0 14px; }
+.wc-chip { width: 46px; height: 34px; border-radius: 7px; background: linear-gradient(135deg, #f3dca0, #c9a24f); border: 1px solid rgba(255,255,255,.55); }
+.wc-acct { font-family: "Space Grotesk", ui-monospace, monospace; font-size: 24px; font-weight: 600; letter-spacing: .14em; white-space: nowrap; }
+.wc-copy { border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.16); color: inherit; border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.wc.src-boa .wc-copy { border-color: rgba(0,0,0,.25); background: rgba(0,0,0,.08); }
+.wc-field { display: inline-block; align-self: flex-start; margin: 0 0 14px; padding: 6px 14px; font-size: 13px; }
+@media (max-width: 860px) {
+  .src-track .src-card.wc { flex-basis: 90%; min-height: 220px; padding: 16px 16px; border-radius: 18px; }
+  .wc-acct { font-size: 17px; letter-spacing: .08em; }
+  .wc-chip { width: 38px; height: 28px; }
+  .wc-chipline { gap: 10px; flex-wrap: wrap; }
+}
+@media (max-width: 860px) {
+  .wc-acct { font-size: 15px; letter-spacing: .06em; }
+  .wc-chipline { flex-wrap: nowrap; }
+  .wc-chip { width: 32px; height: 24px; flex: none; }
+  .wc-copy { margin-left: auto; }
+  .wc-top { margin-bottom: 8px; }
+  .wc-field { margin: 0 0 8px; padding: 4px 10px; font-size: 12px; }
+  .wc-note { display: none; }
+  .src-track .src-card.wc { min-height: 0; height: auto; }
+}
+.src-track .src-card.wc { aspect-ratio: auto; justify-content: flex-start; }
+@media (min-width: 861px) { .src-track .src-card.wc { aspect-ratio: 1.95 / 1; min-height: 250px; justify-content: space-between; } }
