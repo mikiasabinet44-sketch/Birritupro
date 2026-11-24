@@ -31,6 +31,10 @@ export const V1: Entry[] = [
   { method: "GET", pattern: "einvoices/:id", scope: "einvoices:read", target: "einvoices/:id" },
   { method: "POST", pattern: "einvoices/from-invoice/:invoiceId", scope: "einvoices:write", target: "einvoices/from-invoice/:invoiceId" },
 
+  { method: "POST", pattern: "sales", scope: "sales:write", target: "_v1/sales" },
+  { method: "GET", pattern: "sales", scope: "sales:read", target: "_v1/sales" },
+  { method: "POST", pattern: "sales/:id/void", scope: "sales:write", target: "_v1/sales/:id/void" },
+
   { method: "GET", pattern: "tax/filings", scope: "reports:read", target: "tax/filings" },
   { method: "GET", pattern: "dashboard/summary", scope: "reports:read", target: "dashboard/summary" },
 ];

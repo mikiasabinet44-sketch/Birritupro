@@ -121,6 +121,7 @@ const ROUTES = [
   { id: "dashboard", label: "Home", render: renderDashboard },
   { id: "analytics", label: "Analytics", render: renderAnalytics },
   { id: "transactions", label: "Money in & out", render: renderTransactions },
+  { id: "sales", label: "Sales & cash", render: renderSales },
   { id: "payments", label: "Payment checks", render: renderPayments },
   { id: "invoices", label: "Invoices", render: renderInvoices },
   { id: "payroll", label: "Staff pay", render: renderPayroll },
@@ -133,6 +134,7 @@ const ROUTES = [
 
 // Simple 20px outline icons (stroke = currentColor), one per route.
 const NAV_ICONS = {
+  sales: '<path d="M4 5h16v11H4zM2 19h20M9 10.5h6M12 8v5"/>',
   analytics: '<path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/>',
   dashboard: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   transactions: '<path d="M7 4v14m0 0l-3-3m3 3l3-3M17 20V6m0 0l-3 3m3-3l3 3"/>',

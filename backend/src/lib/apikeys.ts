@@ -8,6 +8,7 @@ export const SCOPES = [
   "customers:read", "customers:write",
   "inventory:read", "inventory:write",
   "einvoices:read", "einvoices:write",
+  "sales:read", "sales:write",
   "reports:read",
 ] as const;
 export type Scope = (typeof SCOPES)[number];

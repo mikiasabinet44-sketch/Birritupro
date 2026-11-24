@@ -27,7 +27,8 @@ for (const t of BRANCHED_TABLES) ensureColumn(t, "branch_id", "TEXT REFERENCES b
 
 // ---- Migrations: API-sourced payments, input VAT, tax filing detail ----
 ensureColumn("payment_events", "channel", "TEXT NOT NULL DEFAULT 'sms'");   // 'sms' | 'api'
-ensureColumn("payment_events", "external_id", "TEXT");                     // the sender's own id, used to make retries safe
+ensureColumn("payment_events", "external_id", "TEXT");
+ensureColumn("payment_events", "bill_id", "TEXT");                         // set when the payment settled a restaurant / shop bill                     // the sender's own id, used to make retries safe
 ensureColumn("transactions", "input_vat", "REAL NOT NULL DEFAULT 0");      // VAT paid on a purchase, claimable against output VAT
 ensureColumn("tax_filings", "detail", "TEXT");                             // JSON breakdown (e.g. output VAT, input VAT, net)
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_external ON payment_events(channel, external_id) WHERE external_id IS NOT NULL`);

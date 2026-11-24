@@ -26,6 +26,8 @@ import { inventoryRouter } from "./routes/inventory.js";
 import { einvoicesRouter } from "./routes/einvoices.js";
 import { settingsRouter } from "./routes/settings.js";
 import { aiRouter } from "./routes/ai.js";
+import { salesRouter } from "./routes/sales.js";
+import { v1SalesRouter } from "./routes/v1sales.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.resolve(__dirname, "../../frontend/public");
@@ -46,7 +48,9 @@ const mounts: Array<{ prefix: string[]; router: Router }> = [
   { prefix: ["api", "einvoices"], router: einvoicesRouter },
   { prefix: ["api", "settings"], router: settingsRouter },
   { prefix: ["api", "ai"], router: aiRouter },
+  { prefix: ["api", "sales"], router: salesRouter },
   { prefix: ["api", "keys"], router: apiKeysRouter },
+  { prefix: ["api", "_v1", "sales"], router: v1SalesRouter },
   { prefix: ["api", "_v1", "payments"], router: v1PaymentsRouter }, // internal: only reachable via the /api/v1 gateway
 ];
 

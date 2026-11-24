@@ -3,6 +3,7 @@ import { round2, todayStr } from "../branch.js";
 import { tokenize } from "./learner.js";
 import { verifyChain } from "../einvoice.js";
 import { stockOnHand } from "../inventory.js";
+import { salesInsights } from "../sales.js";
 
 export interface Insight {
   id: string;
@@ -42,7 +43,7 @@ export function detectAnomalies(branchId: string | null): Insight[] {
   // 1. Possible duplicate entries: same amount, within 3 days, similar wording.
   const txns = db.prepare(
     `SELECT id, date, description, amount, source, branch_id FROM transactions
-     WHERE date >= date('now','-90 days')${bw} ORDER BY date DESC LIMIT 1500`
+     WHERE date >= date('now','-90 days') AND description NOT LIKE 'Sale · %'${bw} ORDER BY date DESC LIMIT 1500`
   ).all(...bp) as any[];
   const toks = txns.map((t) => tokenize(t.description));
   let dupes = 0;
@@ -161,6 +162,8 @@ export function detectAnomalies(branchId: string | null): Insight[] {
     if (d < 0) add({ severity: "high", kind: "tax_overdue", title: `${f.tax_type.replace(/_/g, " ")} filing for ${f.period} is ${-d} day(s) overdue`, detail: `${money(f.tax_amount)} was due ${f.due_date}.` });
     else if (d <= 5) add({ severity: "medium", kind: "tax_due_soon", title: `${f.tax_type.replace(/_/g, " ")} filing for ${f.period} is due in ${d} day(s)`, detail: `${money(f.tax_amount)} due ${f.due_date}.` });
   }
+
+  for (const i of salesInsights(branchId)) add(i);
 
   return out.sort((a, b) => SEV[a.severity] - SEV[b.severity]);
 }

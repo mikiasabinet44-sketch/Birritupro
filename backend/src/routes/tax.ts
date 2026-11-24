@@ -38,8 +38,10 @@ taxRouter.post("/compute/:period", (req, res) => {
     `SELECT COALESCE(SUM(json_extract(payload,'$.totals.net')),0) AS net, COALESCE(SUM(json_extract(payload,'$.totals.vat')),0) AS vat, COUNT(*) AS n
      FROM einvoices WHERE doc_type = 'credit_note' AND status = 'registered' AND registered_at LIKE ?`
   ).get(`${period}%`) as { net: number; vat: number; n: number };
-  const vatBase = round2(invoices.reduce((s, i) => s + i.amount, 0) - credits.net);
-  const vatAmount = round2(invoices.reduce((s, i) => s + i.vat_amount, 0) - credits.vat);
+  // Paid till / restaurant bills are sales too: their VAT is output VAT.
+  const billSales = db.prepare(`SELECT COALESCE(SUM(subtotal),0) AS net, COALESCE(SUM(vat),0) AS vat FROM bills WHERE status = 'paid' AND paid_at LIKE ?`).get(`${period}%`) as { net: number; vat: number };
+  const vatBase = round2(invoices.reduce((s, i) => s + i.amount, 0) + billSales.net - credits.net);
+  const vatAmount = round2(invoices.reduce((s, i) => s + i.vat_amount, 0) + billSales.vat - credits.vat);
 
   // Input VAT: VAT paid on purchases in the period (only where it was recorded against a valid supplier invoice).
   const inputVat = round2(

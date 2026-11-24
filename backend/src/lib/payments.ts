@@ -4,6 +4,7 @@ import { findInvoiceMatches } from "./invoiceMatcher.js";
 import { smartCategorize } from "./ai/learner.js";
 import type { ParsedSms, Provider } from "./smsParsers.js";
 import { round2 } from "./branch.js";
+import { matchBillToPayment } from "./sales.js";
 
 export interface RecordPaymentInput {
   provider: Provider;
@@ -94,6 +95,10 @@ export function recordPayment(inp: RecordPaymentInput): RecordPaymentResult {
         applyPaymentToInvoice(best.invoiceId, parsed.amount);
         db.prepare(`UPDATE payment_events SET matched_invoice_id = ? WHERE id = ?`).run(best.invoiceId, id);
         appliedToInvoiceId = best.invoiceId;
+      }
+      // Not an invoice? It may be a customer paying a restaurant / shop bill by Telebirr or bank transfer.
+      if (!appliedToInvoiceId) {
+        matchBillToPayment({ amount: parsed.amount, provider: parsed.provider, rawText: inp.rawText, reference: parsed.reference, branchId: inp.branchId, transactionId, paymentEventId: id });
       }
     }
   }

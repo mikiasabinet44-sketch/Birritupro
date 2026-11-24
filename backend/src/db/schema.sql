@@ -270,3 +270,64 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (key_id, idem_key)
 );
+
+-- ========================================================================
+-- Sales: bills (restaurant / hotel / shop), cash drawer shifts, POS connector
+-- ========================================================================
+
+CREATE TABLE IF NOT EXISTS bills (
+  id TEXT PRIMARY KEY,
+  number TEXT NOT NULL UNIQUE,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  table_label TEXT,
+  customer_name TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','paid','void')),
+  payment_method TEXT,               -- cash | telebirr | cbe | boa | card (set when paid, or when we are waiting for a bank message)
+  subtotal REAL NOT NULL DEFAULT 0,
+  vat REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  prices_include_vat INTEGER NOT NULL DEFAULT 0,
+  reference TEXT,
+  external_id TEXT UNIQUE,           -- the POS's own bill id (makes retries safe)
+  source TEXT NOT NULL DEFAULT 'app',-- app | pos
+  shift_id TEXT,
+  transaction_id TEXT,
+  payment_event_id TEXT,
+  void_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  paid_at TEXT,
+  voided_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS bill_lines (
+  id TEXT PRIMARY KEY,
+  bill_id TEXT NOT NULL REFERENCES bills(id),
+  product_id TEXT REFERENCES products(id),
+  description TEXT NOT NULL,
+  qty REAL NOT NULL,
+  unit_price REAL NOT NULL,
+  vat_rate REAL NOT NULL DEFAULT 0.15
+);
+
+CREATE TABLE IF NOT EXISTS cash_shifts (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  opened_at TEXT NOT NULL DEFAULT (datetime('now')),
+  opening_float REAL NOT NULL DEFAULT 0,
+  closed_at TEXT,
+  expected REAL,
+  counted REAL,
+  variance REAL,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed'))
+);
+
+CREATE TABLE IF NOT EXISTS cash_events (
+  id TEXT PRIMARY KEY,
+  shift_id TEXT NOT NULL REFERENCES cash_shifts(id),
+  type TEXT NOT NULL CHECK (type IN ('payout','drop','refund','add')),
+  amount REAL NOT NULL,              -- signed: negative = cash leaves the drawer
+  note TEXT,
+  transaction_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
