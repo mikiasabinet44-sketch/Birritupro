@@ -2,7 +2,7 @@ import db from "../db/index.js";
 import { nanoid } from "./id.js";
 import { HttpError } from "./httpRouter.js";
 import { round2, todayStr } from "./branch.js";
-import { addMovement, applySaleStock, getProduct } from "./inventory.js";
+import { addMovement, getProduct, stockOnHand } from "./inventory.js";
 import { smartCategorize } from "./ai/learner.js";
 
 export const METHODS = ["cash", "telebirr", "cbe", "boa", "card"] as const;
@@ -92,7 +92,13 @@ export function settleBill(billId: string, method: Method, opts: { existingTrans
 
   const lines = db.prepare(`SELECT product_id, qty FROM bill_lines WHERE bill_id = ?`).all(billId) as Array<{ product_id: string | null; qty: number }>;
   const date = opts.date ?? todayStr();
-  applySaleStock(billId, bill.branch_id, date, lines.map((l) => ({ productId: l.product_id, qty: l.qty })));
+  // The customer has already paid, so a bill is never refused over stock. Take out what is on the shelf (menu items with no stock simply skip this).
+  const need = new Map<string, number>();
+  for (const l of lines) if (l.product_id) need.set(l.product_id, (need.get(l.product_id) ?? 0) + l.qty);
+  for (const [pid, qty] of need) {
+    const take = Math.min(qty, Math.max(0, stockOnHand(pid, bill.branch_id)));
+    if (take > 0) addMovement({ productId: pid, branchId: bill.branch_id, type: "sale", qty: -take, unitCost: getProduct(pid).cost_price, date, refType: "bill", refId: billId });
+  }
 
   let transactionId = opts.existingTransactionId ?? null;
   if (transactionId) {
@@ -127,8 +133,8 @@ export function voidBill(billId: string, reason: string) {
        VALUES (?,?,?,?, 'Sales Revenue', 1, 'confirmed', 'manual', ?, ?)`
     ).run(nanoid(), todayStr(), `Sale · VOID ${bill.number} (cash refunded)`, -bill.total, billId, bill.branch_id);
     if (shift) db.prepare(`INSERT INTO cash_events (id, shift_id, type, amount, note) VALUES (?,?, 'refund', ?, ?)`).run(nanoid(), shift.id, -bill.total, `Void ${bill.number}: ${reason.trim().slice(0, 100)}`);
-    const sales = db.prepare(`SELECT product_id, qty FROM bill_lines WHERE bill_id = ? AND product_id IS NOT NULL`).all(billId) as Array<{ product_id: string; qty: number }>;
-    for (const s of sales) addMovement({ productId: s.product_id, branchId: bill.branch_id, type: "sale_return", qty: s.qty, refType: "bill", refId: billId, note: `void ${bill.number}` });
+    const sold = db.prepare(`SELECT product_id, -SUM(qty) AS qty FROM stock_movements WHERE ref_type = 'bill' AND ref_id = ? AND type = 'sale' GROUP BY product_id`).all(billId) as Array<{ product_id: string; qty: number }>;
+    for (const s of sold) if (s.qty > 0) addMovement({ productId: s.product_id, branchId: bill.branch_id, type: "sale_return", qty: s.qty, refType: "bill", refId: billId, note: `void ${bill.number}` });
   }
   db.prepare(`UPDATE bills SET status = 'void', void_reason = ?, voided_at = ? WHERE id = ?`).run(reason.trim().slice(0, 200), nowStr(), billId);
   return getBill(billId);
@@ -247,4 +253,20 @@ export function salesInsights(branchId: string | null): SalesInsight[] {
   const old = db.prepare(`SELECT COUNT(*) AS n FROM cash_shifts WHERE status = 'open' AND opened_at < datetime('now','-20 hours')${bw}`).get(...bp) as { n: number };
   if (old.n > 0) out.push({ severity: "low", kind: "drawer_open", title: "A cash drawer was left open overnight", detail: "Count the cash and close the drawer so the day's difference can be checked." });
   return out;
+}
+
+/** A customer typed the transaction number from their bank / wallet receipt: close the bill if a real payment with that number and amount is already on file. */
+export function matchBillByReference(billId: string): boolean {
+  const bill = getBill(billId);
+  if (bill.status !== "open" || !bill.reference) return false;
+  const ref = String(bill.reference).toUpperCase();
+  const ev = db.prepare(
+    `SELECT id, provider, transaction_id FROM payment_events
+      WHERE verification_status = 'verified' AND direction = 'credit' AND ABS(amount - ?) < 0.01 AND bill_id IS NULL AND matched_invoice_id IS NULL
+        AND transaction_id IS NOT NULL AND (UPPER(reference) = ? OR UPPER(raw_text) LIKE ?) ORDER BY created_at DESC LIMIT 2`
+  ).all(bill.total, ref, `%${ref.replace(/[%_]/g, "")}%`) as Array<{ id: string; provider: string; transaction_id: string }>;
+  if (ev.length !== 1) return false;
+  settleBill(billId, PROVIDER_OF[ev[0].provider.toUpperCase()] ?? "card", { existingTransactionId: ev[0].transaction_id, paymentEventId: ev[0].id });
+  db.prepare(`UPDATE payment_events SET bill_id = ? WHERE id = ?`).run(billId, ev[0].id);
+  return true;
 }

@@ -1,5 +1,5 @@
 import { createRouter, HttpError } from "../lib/httpRouter.js";
-import db, { runInTransaction } from "../db/index.js";
+import db, { runInTransaction, getSetting, setSetting } from "../db/index.js";
 import { branchOf, branchClause, writeBranch, round2, todayStr } from "../lib/branch.js";
 import { nanoid } from "../lib/id.js";
 import { createBill, settleBill, voidBill, openShift, expectedCash, drawerEvent, matchPaymentToBill, METHODS, type Method } from "../lib/sales.js";
@@ -35,6 +35,15 @@ salesRouter.post("/", (req, res) => {
     out = { ...bill, status };
   });
   res.status(201).json(out);
+});
+
+// ---- How the business takes orders: this app's own bills, or an external POS / till that reports in ----
+salesRouter.get("/mode", (_req, res) => { res.json({ mode: getSetting("sales_mode") === "pos" ? "pos" : "builtin" }); });
+salesRouter.post("/mode", (req, res) => {
+  const m = String(req.body?.mode ?? "");
+  if (m !== "pos" && m !== "builtin") throw new HttpError(400, "mode must be builtin or pos");
+  setSetting("sales_mode", m);
+  res.json({ mode: m });
 });
 
 // ---- Cash drawer ----

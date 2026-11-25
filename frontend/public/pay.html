@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pay</title>
+<style>
+  :root { --bg:#F6F4EE; --card:#fff; --ink:#15231f; --muted:#5d6b66; --line:#e3dfd2; --green:#0F5C4A; --amber:#E8A33D; --red:#B3402A; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1a16; --card:#14251f; --ink:#e8f1ed; --muted:#9db2aa; --line:#25382f; --green:#35b08b; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:480px; margin:0 auto; padding:16px; }
+  header { display:flex; align-items:center; gap:10px; padding:8px 2px 16px; }
+  .logo { width:36px; height:36px; border-radius:10px; background:var(--amber); color:#0F2B24; display:grid; place-items:center; font-weight:800; }
+  header b { font-size:17px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .price { font-size:34px; font-weight:800; letter-spacing:-.5px; margin:6px 0 2px; }
+  label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
+  input, select { width:100%; font:inherit; padding:12px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .qty { display:flex; align-items:center; gap:12px; margin-top:12px; }
+  .qty button { width:44px; height:44px; font-size:22px; }
+  .qty span { min-width:28px; text-align:center; font-weight:700; font-size:18px; }
+  button { font:inherit; cursor:pointer; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:12px 16px; font-weight:600; }
+  .primary { background:var(--green); color:#fff; border-color:var(--green); width:100%; font-size:17px; padding:14px; margin-top:16px; }
+  .acct { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--line); border-radius:12px; margin-top:10px; }
+  .dot { width:12px; height:12px; border-radius:50%; flex:none; }
+  .acct .no { font-size:19px; font-weight:700; letter-spacing:.06em; font-variant-numeric:tabular-nums; word-break:break-all; }
+  .acct .who { flex:1; min-width:0; }
+  .acct button { padding:8px 12px; font-size:14px; }
+  ol { padding-left:20px; margin:8px 0 0; }
+  .status { text-align:center; padding:22px 18px; border-radius:16px; margin-bottom:14px; }
+  .wait { background:#fff6e3; color:#6b4a00; border:1px solid #f0d9a4; }
+  .paid { background:#e3f4ea; color:#14532d; border:1px solid #b9dcc7; }
+  @media (prefers-color-scheme: dark) { .wait { background:#2b2410; color:#f0d9a4; border-color:#4a3c14; } .paid { background:#12301f; color:#bfe8cd; border-color:#1f5535; } }
+  .status .big { font-size:20px; font-weight:800; }
+  .err { color:var(--red); font-size:14px; margin-top:8px; min-height:1em; }
+  .center { text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <header><div class="logo">B</div><b id="biz">Pay</b></header>
+  <div id="root"><div class="card center muted">Loading…</div></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var root = document.getElementById("root"), bizEl = document.getElementById("biz");
+  var q = new URLSearchParams(location.search);
+  var itemId = q.get("i"), branch = q.get("b") || "";
+  var hash = new URLSearchParams(location.hash.slice(1));
+  var COLORS = { CBE: "#7B3A9C", TELEBIRR: "#2A9A52", BOA: "#E0A800" };
+  var timer = null;
+
+  function h(tag, props, kids) {
+    var el = document.createElement(tag);
+    for (var k in (props || {})) {
+      if (k === "class") el.className = props[k];
+      else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), props[k]);
+      else el.setAttribute(k, props[k]);
+    }
+    [].concat(kids || []).forEach(function (c) { el.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return el;
+  }
+  function etb(n) { return "ETB " + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function show() { root.replaceChildren.apply(root, arguments); }
+  function api(path, body) {
+    return fetch("/api/pay" + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Something went wrong"); return j; }); });
+  }
+  function fail(msg) { show(h("div", { class: "card center" }, [h("h1", {}, ["Sorry"]), h("p", { class: "muted" }, [msg])])); }
+
+  function copyBtn(text) {
+    var b = h("button", { type: "button" }, ["Copy"]);
+    b.addEventListener("click", function () {
+      var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done); else done();
+    });
+    return b;
+  }
+  function accountRows(accounts) {
+    return accounts.map(function (a) {
+      return h("div", { class: "acct" }, [
+        h("span", { class: "dot", style: "background:" + (COLORS[a.code] || "#888") }),
+        h("div", { class: "who" }, [h("div", { class: "muted" }, [a.label]), h("div", { class: "no" }, [a.account])]),
+        copyBtn(a.account),
+      ]);
+    });
+  }
+
+  // ---- 1. the item
+  function itemView(it) {
+    bizEl.textContent = it.business; document.title = it.name + " · " + it.business;
+    var qty = 1;
+    var qtyEl = h("span", {}, ["1"]), priceEl = h("div", { class: "price" }, [etb(it.price)]);
+    var err = h("div", { class: "err", role: "alert" });
+    var table = h("input", { id: "table", placeholder: "Table or room (optional)", maxlength: "40", autocomplete: "off" });
+    function set(n) { qty = Math.max(1, Math.min(20, n)); qtyEl.textContent = String(qty); priceEl.textContent = etb(it.price * qty); }
+    var go = h("button", { class: "primary", type: "button" }, ["Continue to pay"]);
+    go.addEventListener("click", function () {
+      go.disabled = true; err.textContent = "";
+      api("/item/" + encodeURIComponent(it.id) + "/order", { qty: qty, table: table.value, branch: branch })
+        .then(function (b) { history.replaceState(null, "", location.pathname + location.search + "#b=" + b.id); billView(b.id); })
+        .catch(function (e) { err.textContent = e.message; go.disabled = false; });
+    });
+    show(h("div", { class: "card" }, [
+      h("h1", {}, [it.name]), h("div", { class: "muted" }, ["Price includes VAT"]), priceEl,
+      h("div", { class: "qty" }, [h("button", { type: "button", "aria-label": "One less", onclick: function () { set(qty - 1); } }, ["−"]), qtyEl,
+        h("button", { type: "button", "aria-label": "One more", onclick: function () { set(qty + 1); } }, ["+"])]),
+      h("label", { for: "table" }, ["Where are you sitting?"]), table, go, err,
+    ]));
+  }
+
+  // ---- 2. the bill: where to send the money, then wait for it to arrive
+  function billView(id) {
+    clearTimeout(timer);
+    api("/bill/" + encodeURIComponent(id)).then(function (b) {
+      bizEl.textContent = b.business;
+      document.title = b.number + " · " + b.business;
+      if (b.status === "paid") return show(h("div", { class: "status paid" }, [h("div", { class: "big" }, ["Payment received. Thank you!"]), h("div", {}, [b.number + " · " + etb(b.total)])]));
+      if (b.status === "void") return fail("This bill was cancelled. Please ask the staff.");
+
+      var ref = h("input", { id: "ref", placeholder: "e.g. CFH1X2Y3Z4", autocomplete: "off", maxlength: "30" });
+      var prov = h("select", { id: "prov" }, [h("option", { value: "" }, ["Not sure"])].concat(b.accounts.map(function (a) { return h("option", { value: a.code }, [a.label]); })));
+      var err = h("div", { class: "err", role: "alert" });
+      var sent = h("button", { type: "button" }, ["I have paid"]);
+      sent.addEventListener("click", function () {
+        sent.disabled = true; err.textContent = "";
+        api("/bill/" + encodeURIComponent(id) + "/claim", { reference: ref.value, provider: prov.value })
+          .then(function () { billView(id); }).catch(function (e) { err.textContent = e.message; sent.disabled = false; });
+      });
+      show(
+        h("div", { class: "status wait" }, [h("div", { class: "big" }, ["Waiting for your payment"]), h("div", {}, ["This page turns green by itself when it arrives."])]),
+        h("div", { class: "card" }, [
+          h("div", { class: "muted" }, [b.number + " · " + b.items.map(function (i) { return i.qty + " × " + i.description; }).join(", ")]),
+          h("div", { class: "price" }, [etb(b.total)]),
+          h("ol", {}, [h("li", {}, ["Open Telebirr or your bank app."]), h("li", {}, ["Send exactly " + etb(b.total) + " to one of the accounts below."]), h("li", {}, ["Come back to this page. You will see the receipt here."])]),
+        ].concat(accountRows(b.accounts))),
+        h("div", { class: "card" }, [
+          h("b", {}, ["Already paid?"]), h("div", { class: "muted" }, ["Add the transaction number from your receipt so we can find your payment faster."]),
+          h("label", { for: "prov" }, ["Paid with"]), prov, h("label", { for: "ref" }, ["Transaction number"]), ref,
+          h("div", { style: "margin-top:12px" }, [sent]), err,
+        ])
+      );
+      timer = setTimeout(function () { billView(id); }, 4000);
+    }).catch(function (e) { fail(e.message); });
+  }
+
+  if (hash.get("b")) billView(hash.get("b"));
+  else if (itemId) api("/item/" + encodeURIComponent(itemId)).then(itemView).catch(function (e) { fail(e.message); });
+  else fail("This QR code is not complete. Please ask the staff for another one.");
+})();
+</script>
+</body>
+</html>

@@ -3,15 +3,11 @@ import db from "../db/index.js";
 import { branchOf, branchClause, branchName } from "../lib/branch.js";
 import { reorderSuggestions } from "../lib/ai/reorder.js";
 import { detectAnomalies } from "../lib/ai/anomalies.js";
+import { PROVIDERS } from "../lib/accounts.js";
 
 export const homeRouter = createRouter();
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const PROVIDERS: Array<{ code: string; label: string; account: string }> = [
-  { code: "CBE", label: "Commercial Bank of Ethiopia", account: process.env.ACCOUNT_CBE ?? "1000599846321" },
-  { code: "TELEBIRR", label: "Telebirr", account: process.env.ACCOUNT_TELEBIRR ?? "0926684050" },
-  { code: "BOA", label: "Bank of Abyssinia", account: process.env.ACCOUNT_BOA ?? "170182057" },
-];
 const LABELS: Record<string, string> = { CBE: "CBE", TELEBIRR: "Telebirr", BOA: "BOA", UNKNOWN: "Unrecognised sender" };
 
 /**

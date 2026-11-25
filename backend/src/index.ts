@@ -27,6 +27,7 @@ import { einvoicesRouter } from "./routes/einvoices.js";
 import { settingsRouter } from "./routes/settings.js";
 import { aiRouter } from "./routes/ai.js";
 import { salesRouter } from "./routes/sales.js";
+import { payRouter } from "./routes/pay.js";
 import { v1SalesRouter } from "./routes/v1sales.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +50,7 @@ const mounts: Array<{ prefix: string[]; router: Router }> = [
   { prefix: ["api", "settings"], router: settingsRouter },
   { prefix: ["api", "ai"], router: aiRouter },
   { prefix: ["api", "sales"], router: salesRouter },
+  { prefix: ["api", "pay"], router: payRouter },
   { prefix: ["api", "keys"], router: apiKeysRouter },
   { prefix: ["api", "_v1", "sales"], router: v1SalesRouter },
   { prefix: ["api", "_v1", "payments"], router: v1PaymentsRouter }, // internal: only reachable via the /api/v1 gateway

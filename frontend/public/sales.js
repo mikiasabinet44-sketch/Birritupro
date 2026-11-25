@@ -1,5 +1,5 @@
 // Sales: bills for restaurants / hotels / shops, the cash drawer, and the POS connection.
-const SL = { tab: "bills", lines: [{}] };
+const SL = { tab: "bills", lines: [{}], mode: null };
 const SL_METHODS = [["cash", "Cash"], ["telebirr", "Telebirr"], ["cbe", "CBE"], ["boa", "BOA"], ["card", "Card"]];
 const SL_LABEL = Object.fromEntries(SL_METHODS);
 const slMoney = (n) => money(n);
@@ -7,14 +7,16 @@ const slTime = (s) => (s ? String(s).slice(0, 16).replace("T", " ") : "");
 
 async function renderSales(view) {
   document.getElementById("page-actions").innerHTML = "";
-  const tabs = [["bills", "Bills"], ["drawer", "Cash drawer"], ["pos", "POS connection"]];
+  if (!SL.mode) { try { SL.mode = (await api("/sales/mode")).mode; } catch { SL.mode = "builtin"; } }
+  const tabs = [["bills", SL.mode === "pos" ? "POS sales" : "Bills"], ["drawer", "Cash drawer"], ["qr", "Pay-by-QR"], ["pos", "POS connection"]];
   view.innerHTML = `<div class="tabs" role="group" aria-label="Sales sections">${tabs.map(([id, l]) =>
     `<button type="button" class="tab-btn${SL.tab === id ? " active" : ""}" data-sltab="${id}" aria-pressed="${SL.tab === id}">${l}</button>`).join("")}</div><div id="sl-body"></div>`;
   view.querySelectorAll("[data-sltab]").forEach((b) => (b.onclick = () => { SL.tab = b.dataset.sltab; renderSales(view); }));
   const body = document.getElementById("sl-body");
   try {
     if (SL.tab === "drawer") await slDrawer(body, view);
-    else if (SL.tab === "pos") await slPos(body);
+    else if (SL.tab === "pos") await slPos(body, view);
+    else if (SL.tab === "qr") await slQr(body);
     else await slBills(body, view);
   } catch (e) { body.innerHTML = `<div class="panel"><div class="empty">${esc(e.message)}</div></div>`; }
 }
@@ -35,14 +37,21 @@ async function slBills(el, view) {
       <input class="sl-price" type="number" min="0" step="any" placeholder="Price" value="${l.unitPrice ?? ""}" aria-label="Price each">
       <button type="button" class="btn btn-sm" data-rm="${i}" aria-label="Remove item ${i + 1}">&times;</button></div>`;
 
+  const own = SL.mode === "pos";
   el.innerHTML = `
+    <div class="sl-mode" role="group" aria-label="How you take orders">
+      <span class="small"><b>You take orders with:</b></span>
+      <button type="button" class="tab-btn${own ? "" : " active"}" data-mode="builtin" aria-pressed="${!own}">This app (built-in bills)</button>
+      <button type="button" class="tab-btn${own ? " active" : ""}" data-mode="pos" aria-pressed="${own}">My own POS / till</button>
+    </div>
     <div class="grid-cards">
       ${card("Sold today", `<span class="num">${slMoney(sum.total)}</span>`, `${sum.count} bill${sum.count === 1 ? "" : "s"} paid`)}
       ${card("Cash today", `<span class="num">${slMoney(cashToday)}</span>`, drawer.open ? "Drawer is open" : "Drawer is closed")}
       ${card("Bank & wallet", `<span class="num">${slMoney(otherToday)}</span>`, "Telebirr, CBE, BOA, card")}
       ${card("Open bills", `<span class="num">${slMoney(sum.open.total)}</span>`, `${sum.open.n} unpaid${sum.waiting.n ? ` · ${sum.waiting.n} waiting for a bank message` : ""}${sum.voids.n ? ` · ${sum.voids.n} voided today` : ""}`)}
     </div>
-    <div class="panel"><div class="panel-head"><h3>New bill</h3><span class="small muted">Recorded for ${esc(drawer.branch)}</span></div>
+    ${own ? `<div class="panel"><div class="panel-body"><b>Your POS reports every sale here.</b>
+      <div class="muted small" style="margin-top:4px">Cash sales are booked at once and counted in the cash drawer. Telebirr, CBE and BOA sales close by themselves when the bank message arrives. Set it up on the POS connection tab.</div></div></div>` : `<div class="panel"><div class="panel-head"><h3>New bill</h3><span class="small muted">Recorded for ${esc(drawer.branch)}</span></div>
       <div class="panel-body">
         <datalist id="sl-products">${products.map((p) => `<option value="${esc(p.name)}">`).join("")}</datalist>
         <div class="form-grid"><div><label>Table, room or name</label><input id="sl-table" placeholder="Table 4"></div>
@@ -57,14 +66,14 @@ async function slBills(el, view) {
           <button type="button" class="btn btn-primary" id="sl-charge">Charge &amp; close</button>
           <button type="button" class="btn" id="sl-save">Save as open bill</button></div>
         <div class="muted small" style="margin-top:8px">Cash is booked at once. Telebirr, CBE and BOA wait for the real bank message and close the bill by themselves when it arrives.</div>
-      </div></div>
-    <div class="panel"><div class="panel-head"><h3>Open bills</h3><span class="small muted">Not paid yet</span></div>
+      </div></div>`}
+    <div class="panel"><div class="panel-head"><h3>${own ? "POS bills waiting for payment" : "Open bills"}</h3><span class="small muted">Not paid yet</span></div>
       <div class="table-wrap">${table(["Bill", "Table", "Items", "Total", "Status", "Take payment"], open.map((b) => [
-        `<b>${esc(b.number)}</b><div class="muted small">${esc(slTime(b.created_at))}${b.source === "pos" ? " · from POS" : ""}</div>`,
+        `<b>${esc(b.number)}</b><div class="muted small">${esc(slTime(b.created_at))}${b.source === "pos" ? " · from POS" : b.source === "qr" ? " · QR" : ""}</div>`,
         esc(b.table_label ?? "—"),
         `<div class="an-wrap">${esc(b.lines.map((l) => `${l.qty}× ${l.description}`).join(", "))}</div>`,
         `<span class="num">${slMoney(b.total)}</span>`,
-        b.payment_method && b.payment_method !== "cash" && b.payment_method !== "card" ? pill(`Waiting for ${SL_LABEL[b.payment_method]} message`, "warn") : pill("Unpaid", "muted"),
+        b.payment_method && b.payment_method !== "cash" && b.payment_method !== "card" ? pill(`Waiting for ${SL_LABEL[b.payment_method]} message`, "warn") : pill(b.source === "qr" ? "Customer is paying (QR)" : "Unpaid", "muted"),
         `<div class="flex" style="gap:6px;flex-wrap:wrap">${SL_METHODS.map(([v, l]) => `<button class="btn btn-sm" data-pay="${b.id}" data-m="${v}">${l}</button>`).join("")}
           ${b.payment_method && !["cash", "card"].includes(b.payment_method) ? `<button class="btn btn-sm btn-primary" data-confirm="${b.id}" data-m="${b.payment_method}">I saw it arrive</button>` : ""}
           <button class="btn btn-sm btn-danger" data-void="${b.id}">Void</button></div>`,
@@ -78,6 +87,10 @@ async function slBills(el, view) {
         b.status === "paid" && b.payment_method === "cash" ? `<button class="btn btn-sm btn-danger" data-void="${b.id}">Void &amp; refund</button>` : "",
       ]), "No bills yet.")}</div></div>`;
 
+  el.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = async () => {
+    try { await api("/sales/mode", { method: "POST", body: { mode: b.dataset.mode } }); SL.mode = b.dataset.mode; re(); } catch (e) { toast(e.message, true); }
+  }));
+  if (own) { bindPay(); return; }
   // ---- new bill form
   const readLines = () => [...el.querySelectorAll(".sl-line")].map((r) => ({
     description: r.querySelector(".sl-name").value.trim(), qty: Number(r.querySelector(".sl-qty").value) || 0, unitPrice: r.querySelector(".sl-price").value === "" ? undefined : Number(r.querySelector(".sl-price").value),
@@ -120,7 +133,8 @@ async function slBills(el, view) {
   el.querySelector("#sl-save").onclick = () => submit(false);
   retotal();
 
-  // ---- pay / void
+  bindPay();
+  function bindPay() {
   el.querySelectorAll("[data-pay]").forEach((b) => (b.onclick = async () => {
     const m = b.dataset.m;
     try {
@@ -137,6 +151,7 @@ async function slBills(el, view) {
     if (reason === null) return;
     try { await api(`/sales/${b.dataset.void}/void`, { method: "POST", body: { reason } }); toast("Bill voided"); re(); } catch (e) { toast(e.message, true); }
   }));
+  }
 }
 
 // ------------------------------------------------------------------ Cash drawer
@@ -211,7 +226,7 @@ async function slDrawer(el, view) {
 
 // ------------------------------------------------------------------ POS connection
 
-async function slPos(el) {
+async function slPos(el, view) {
   const bills = (await api("/sales")).filter((b) => b.source === "pos").slice(0, 15);
   const base = location.origin;
   const sample = `curl -X POST ${base}/api/v1/sales \\
@@ -250,4 +265,32 @@ async function slPos(el) {
       "Nothing has come from a POS yet.")}</div></div>`;
   el.querySelector("#sl-copy").onclick = () => navigator.clipboard?.writeText(sample).then(() => toast("Example copied")).catch(() => {});
   el.querySelectorAll("[data-go]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); navigate(a.dataset.go); }));
+}
+
+// ------------------------------------------------------------------ Pay-by-QR
+
+async function slQr(el) {
+  const products = await api("/inventory/products").catch(() => []);
+  const url = (p) => `${location.origin}/pay.html?i=${encodeURIComponent(p.id)}`;
+  const price = (p) => Math.round(p.sell_price * (1 + p.vat_rate) * 100) / 100;
+  const items = products.filter((p) => p.active !== 0);
+  el.innerHTML = `
+    <div class="panel"><div class="panel-head"><h3>Pay-by-QR for every item</h3>
+      ${items.length ? `<button class="btn btn-sm" id="qr-print">Print all</button>` : ""}</div>
+      <div class="panel-body"><p class="muted" style="margin-top:0">Stick an item's code on the menu, shelf or table. A customer scans it with their phone, sees the price and your CBE, Telebirr and BOA accounts, and pays. This bill appears in the app by itself, and closes when your bank or wallet message arrives. Nothing is typed in.</p>
+      <p class="muted small">Items come from Stock. A menu item with no stock count works too: just add it in Stock with its selling price.</p></div></div>
+    <div class="qr-grid">${items.length ? items.map((p) => `<div class="qr-card">
+        <div class="qr-svg" role="img" aria-label="QR code to pay for ${esc(p.name)}">${(() => { try { return qrSvg(url(p), 4); } catch { return ""; } })()}</div>
+        <b>${esc(p.name)}</b><div class="num">${slMoney(price(p))}</div><div class="muted small">incl. VAT</div>
+        <a class="small" href="${esc(url(p))}" target="_blank" rel="noopener">Open the customer page</a></div>`).join("")
+      : `<div class="panel" style="grid-column:1/-1"><div class="empty">No items yet. Add your menu or products in Stock first.<br><button class="btn btn-primary btn-sm" id="qr-go" style="margin-top:10px">Go to Stock</button></div></div>`}</div>`;
+  el.querySelector("#qr-go")?.addEventListener("click", () => navigate("inventory"));
+  el.querySelector("#qr-print")?.addEventListener("click", () => {
+    const w = window.open("", "_blank");
+    if (!w) return toast("Allow pop-ups to print", true);
+    const cards = items.map((p) => `<div class="c">${(() => { try { return qrSvg(url(p), 5); } catch { return ""; } })()}<h2>${esc(p.name)}</h2><p>${esc(slMoney(price(p)))}</p><small>Scan to pay · Telebirr · CBE · BOA</small></div>`).join("");
+    w.document.write(`<!doctype html><title>Pay-by-QR codes</title><style>body{font-family:system-ui,sans-serif;margin:16px}.g{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.c{border:1px solid #999;border-radius:12px;padding:14px;text-align:center;break-inside:avoid}.c svg{width:100%;max-width:200px;height:auto}h2{margin:6px 0 0;font-size:18px}p{margin:2px 0;font-size:20px;font-weight:700}small{color:#555}@media print{body{margin:0}}</style><div class="g">${cards}</div>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  });
 }
