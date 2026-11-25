@@ -6,6 +6,7 @@ import { detectAnomalies } from "../lib/ai/anomalies.js";
 import { cashForecast } from "../lib/ai/forecast.js";
 import { reorderSuggestions } from "../lib/ai/reorder.js";
 import { askAssistant } from "../lib/ai/assistant.js";
+import { converse } from "../lib/ai/agent.js";
 import { smartCategorize } from "../lib/ai/learner.js";
 import { extractJson, llmComplete, llmConfigured, llmModel } from "../lib/ai/llm.js";
 
@@ -34,6 +35,15 @@ aiRouter.post("/ask", async (req, res) => {
   if (!question) throw new HttpError(400, "question is required");
   if (question.length > 500) throw new HttpError(400, "question is too long (max 500 characters)");
   res.json(await askAssistant(question, branchOf(req)));
+});
+
+/** Conversational copilot: remembers the thread (the client sends back `context`), asks for missing details, and proposes actions that need a confirm. */
+aiRouter.post("/converse", async (req, res) => {
+  const question = String(req.body?.question ?? "").trim();
+  if (!question) throw new HttpError(400, "question is required");
+  if (question.length > 500) throw new HttpError(400, "question is too long (max 500 characters)");
+  const ctx = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
+  res.json(await converse(question, ctx, branchOf(req)));
 });
 
 /**

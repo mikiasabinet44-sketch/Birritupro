@@ -117,7 +117,7 @@ export function buildSnapshot(branchId: string | null) {
 // ---------------------------------------------------------------------------
 // Offline intent engine
 // ---------------------------------------------------------------------------
-const HELP = [
+export const HELP = [
   "How much did we spend on rent this month?",
   "What are our sales this month?",
   "Who paid me today?",
@@ -130,7 +130,7 @@ const HELP = [
   "What taxes are due?",
 ];
 
-function answerOffline(question: string, branchId: string | null): AssistantReply {
+export function answerOffline(question: string, branchId: string | null): AssistantReply {
   const q = question.toLowerCase();
   const asked = branchFromQuestion(q);
   const b = asked ?? branchId;

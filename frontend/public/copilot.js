@@ -141,7 +141,7 @@ function bindHomeCopilot(root) {
 
 // ------------------------------------------------------------------ The copilot drawer
 
-const Copilot = { log: [], briefing: null, built: false };
+const Copilot = { log: [], briefing: null, built: false, ctx: {} };
 try { Copilot.log = JSON.parse(sessionStorage.getItem("copilot-log") ?? "[]"); } catch { Copilot.log = []; }
 function saveLog() { try { sessionStorage.setItem("copilot-log", JSON.stringify(Copilot.log.slice(-30))); } catch { /* ignore */ } }
 
@@ -162,7 +162,7 @@ function buildCopilot() {
     <form class="copilot-form" id="copilot-form"><label for="copilot-q" class="sr-only">Ask a question</label>
       <input id="copilot-q" maxlength="500" placeholder="Ask about payments, invoices, tax, stock" autocomplete="off" required />
       <button class="btn btn-primary" type="submit">Send</button></form>
-    <div class="copilot-note muted small">Birritu reads your books and suggests next steps. It never changes anything by itself.</div>`;
+    <div class="copilot-note muted small">Birritu reads your books and suggests next steps. It only changes something after you press Confirm.</div>`;
   document.body.append(launch, panel);
 
   launch.addEventListener("click", () => (panel.hidden ? openCopilot() : closeCopilot()));
@@ -204,8 +204,12 @@ function renderCopilotLog() {
     if (m.role === "user") return `<div class="msg msg-user"><div class="bubble">${esc(m.text)}</div></div>`;
     const t = m.table && m.table.rows && m.table.rows.length
       ? `<div class="bubble-table">${table(m.table.columns, m.table.rows.map((row) => row.map((c) => esc(c))))}</div>` : "";
+    const act = m.action && !m.resolved ? `<div class="act-card"><b>${esc(m.action.title)}</b><ul>${m.action.details.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
+        <div class="act-btns"><button type="button" class="btn btn-primary btn-sm" data-ask="Yes, do it">Confirm</button><button type="button" class="btn btn-sm" data-ask="Cancel">Cancel</button></div></div>` : "";
+    const opts = !m.pending && !m.resolved && ((m.choices && m.choices.length) || (m.followUps && m.followUps.length))
+      ? `<div class="chips chips-inline">${[...(m.choices ?? []), ...(m.choices && m.choices.length ? [] : m.followUps ?? [])].slice(0, 6).map((q) => `<button type="button" class="chip" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>` : "";
     const meta = m.pending ? "" : `<div class="muted small bubble-meta">${m.mode === "llm" ? "Answered by Claude" : m.mode === "offline" ? "Answered from your records" : ""}${m.scope ? ` · ${esc(m.scope)}` : ""}</div>`;
-    return `<div class="msg msg-bot"><div class="bubble">${m.pending ? `<span class="muted">Thinking…</span>` : esc(m.text)}${t}${m.note ? `<div class="muted small">${esc(m.note)}</div>` : ""}${meta}</div></div>`;
+    return `<div class="msg msg-bot"><div class="bubble">${m.pending ? `<span class="muted">Thinking…</span>` : esc(m.text).replace(/\n/g, "<br>")}${t}${act}${m.note ? `<div class="muted small">${esc(m.note)}</div>` : ""}${meta}${opts}</div></div>`;
   }).join("");
   const chips = Copilot.log.length === 0
     ? `<div class="chips">${SUGGESTIONS.map((q) => `<button type="button" class="chip" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>` : "";
@@ -220,8 +224,12 @@ async function askCopilot(q) {
   Copilot.log.push(pending);
   renderCopilotLog();
   try {
-    const r = await api("/ai/ask", { method: "POST", body: { question: q } });
-    Object.assign(pending, { pending: false, text: r.answer, table: r.table, mode: r.mode, scope: r.scope, note: r.note });
+    // Earlier cards and chips are done with once the person moves on.
+    Copilot.log.forEach((m) => { if (m !== pending) m.resolved = true; });
+    const r = await api("/ai/converse", { method: "POST", body: { question: q, context: Copilot.ctx || {} } });
+    Copilot.ctx = r.context || {};
+    Object.assign(pending, { pending: false, text: r.answer, table: r.table, mode: r.mode, scope: r.scope, note: r.note, choices: r.choices, followUps: r.followUps, action: r.action });
+    if (r.done && /^Done\./.test(r.answer)) { try { refreshAfterAction(); } catch {} }
   } catch (err) {
     Object.assign(pending, { pending: false, text: `Sorry, I couldn't answer that: ${err.message}` });
   }
@@ -283,3 +291,10 @@ document.addEventListener("scroll", (e) => {
   car.classList.toggle("at-start", t.scrollLeft < 4);
   car.classList.toggle("at-end", t.scrollLeft + t.clientWidth >= t.scrollWidth - 4);
 }, true);
+
+// After the copilot changes something, refresh the page the person is looking at and the notification bell.
+function refreshAfterAction() {
+  if (typeof notifPoll === "function") notifPoll();
+  const hash = (location.hash || "#dashboard").slice(1);
+  if (typeof navigate === "function") setTimeout(() => navigate(hash), 50);
+}

@@ -606,3 +606,9 @@ code { background: var(--surface-alt); border: 1px solid var(--border); border-r
 .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
 .qr-card { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 14px; padding: 14px; text-align: center; display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .qr-svg svg { width: 150px; height: 150px; }
+
+/* Copilot: confirmation cards and inline choices */
+.act-card { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); }
+.act-card ul { margin: 6px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.act-btns { display: flex; gap: 8px; }
+.chips-inline { margin-top: 10px; }
